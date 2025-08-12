@@ -2,16 +2,29 @@
 import Link from 'next/link';
 import AuthButton from '@/components/auth/AuthButton';
 
-export default function Nav(){
+export default function Nav() {
   return (
-    <nav className="container" style={{display:'flex',gap:16,alignItems:'center',padding:'16px 0'}}>
-      <Link href="/public"><strong>AU Impact</strong></Link>
-      <span style={{flex:1}}/>
-      <Link href="/public/event">Events</Link>
-      <Link href="/public/fundraising">Fundraising</Link>
-      <Link href="/public/merchandise">Merchandise</Link>
-      <Link href="/public/announcements">Announcements</Link>
-      <AuthButton />
+    <nav className="navbar">
+      <div 
+        className="container" 
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '16px 0'
+        }}
+      >
+        <Link href="/public">
+          <strong style={{ fontSize: '1.2rem' }}>AU Impact</strong>
+        </Link>
+        <div style={{ display: 'flex', gap: '24px' }}>
+          <Link href="/public/event">Event</Link>
+          <Link href="/public/fundraising">Fundraising</Link>
+          <Link href="/public/merchandise">Merchandise</Link>
+          <Link href="/public/announcements">Announcements</Link>
+          <AuthButton />
+        </div>
+      </div>
     </nav>
   );
 }
