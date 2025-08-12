@@ -7,7 +7,7 @@ export default function Landing() {
       <p>Welcome! Explore public content or sign in to manage.</p>
       <ul>
         <li><Link href="/public">Go to Public area</Link></li>
-        <li><Link href="/login">Login</Link></li>
+        <li><Link href="/public/login">Login</Link></li>
       </ul>
     </main>
   );
