@@ -87,7 +87,7 @@ export default function Home() {
             width={16}
             height={16}
           />
-          Go to Shwan -
+          Don't go away-
         </a>
       </footer>
     </div>
