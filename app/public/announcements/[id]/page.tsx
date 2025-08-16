@@ -20,11 +20,11 @@ export default async function Page({
 
       <div className="mt-4 grid gap-6 lg:grid-cols-2 items-start">
         {a.photoUrl && (
-          <div className="aspect-[9/16] w-full overflow-hidden rounded-2xl">
+          <div className="w-full overflow-hidden rounded-2xl">
             <img
               src={a.photoUrl}
               alt={a.topic}
-              className="h-full w-full object-cover"
+              className="w-full h-auto object-cover"
             />
           </div>
         )}
