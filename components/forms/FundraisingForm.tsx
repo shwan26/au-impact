@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 export default function FundraisingForm({ initial }: { initial?: Fundraising }) {
   const [form, setForm] = useState<Fundraising>(
-    initial ?? { id: 'new', title: '', goal: 0, summary: '', description: '', status: 'DRAFT' }
+    initial ?? { id: 'new', title: '', goal: 0, summary: '', description: '', status: 'DRAFT' as Status }
   );
 
   return (

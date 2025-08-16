@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import AnnouncementForm from '@/components/forms/AnnouncementForm';
+//import AnnouncementForm from '@/components/forms/AnnouncementForm';
 import { getAnnouncementById } from '@/lib/mock';
 
 export default async function EditAn({
@@ -14,7 +14,7 @@ export default async function EditAn({
   return (
     <div>
       <h1>Edit Announcement</h1>
-      <AnnouncementForm initial={a} />
+      {/* <AnnouncementForm initial={a} /> */}
     </div>
   );
 }

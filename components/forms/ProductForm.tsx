@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 export default function ProductForm({ initial }: { initial?: Product }) {
   const [form, setForm] = useState<Product>(
-    initial ?? { id: 'new', title: '', price: 0, description: '', status: 'DRAFT' }
+    initial ?? { id: 'new', title: '', price: 0, description: '', status: 'DRAFT' as Status }
   );
 
   return (

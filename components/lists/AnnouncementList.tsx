@@ -1,20 +1,27 @@
 'use client';
-import { useJson } from '@/hooks/useJson';
-import Link from 'next/link';
-import { Announcement } from '@/types/db';
 
-export default function AnnouncementList() {
-  const { data, loading, error } = useJson<{ items: Announcement[] }>('/api/announcements');
-  if (loading) return <div>Loading…</div>;
-  if (error) return <div className="card">Error: {error.message}</div>;
+import Box from '@mui/material/Box';
+import type { Announcement } from '@/types/db';
+import AnnouncementCard from '@/components/cards/AnnouncementCard';
 
+export default function AnnouncementList({ items }: { items: Announcement[] }) {
   return (
-    <ul>
-      {data?.items?.map((a) => (
-        <li key={a.id} className="card">
-          <Link href={`/public/announcements/${a.id}`}>{a.title}</Link>
-        </li>
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(3, 1fr)',   // 3 per row from md+
+        },
+        gap: 3,                    // ⬅️ increase spacing (3 = 24px). Use 4 for 32px.
+        justifyItems: 'center',    // centers your fixed-width cards (250px) in each cell
+        alignItems: 'start',
+      }}
+    >
+      {items.map((a) => (
+        <AnnouncementCard key={a.id} a={a} />
       ))}
-    </ul>
+    </Box>
   );
 }
