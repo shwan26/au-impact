@@ -11,9 +11,7 @@ export default function StaffRegisterPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // Next 15: params is a Promise — unwrap it
   const { id } = use(params);
-
   const ev = getEventById(id);
   if (!ev) return notFound();
 
@@ -60,6 +58,7 @@ export default function StaffRegisterPage({
           </Link>
         </div>
 
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/images/line-qr.png"
           alt="Line QR"

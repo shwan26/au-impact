@@ -1,31 +1,31 @@
-// components/lists/EventList.tsx
 'use client';
 
 import { useMemo, useState } from 'react';
 import { events } from '@/lib/mock';
-import type { Event } from '@/types/db';
+import type { Event as BaseEvent } from '@/types/db';
 import EventCard from '@/components/cards/EventCard';
 
 type FilterKey = 'free' | 'paid' | 'participant' | 'staff';
 
-// optional field helpers (no `any`)
-type DateRange = { startDate?: string; endDate?: string };
-type PriceInfo = { priceType?: 'free' | 'paid' };
-type SlotInfo = { openParticipantSlots?: number; openStaffSlots?: number };
+type EventExtras = {
+  startDate?: string;
+  endDate?: string;
+  imageUrl?: string;
+  priceType?: 'free' | 'paid';
+  openParticipantSlots?: number;
+  openStaffSlots?: number;
+  registeredParticipants?: number;
+  registeredStaff?: number;
+};
+type Event = BaseEvent & EventExtras;
 
-const getStart = (e: Event): Date => {
-  const d = e as unknown as DateRange;
-  return new Date(d.startDate ?? e.date);
-};
-const getEnd = (e: Event): Date => {
-  const d = e as unknown as DateRange;
-  return new Date(d.endDate ?? e.date);
-};
+const getStart = (e: Event): Date => new Date(e.startDate ?? e.date);
+const getEnd = (e: Event): Date => new Date(e.endDate ?? e.date);
 const isPast = (e: Event): boolean => {
   const end = getEnd(e).getTime();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return end < today.getTime();
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return end < t.getTime();
 };
 
 export default function EventList() {
@@ -38,7 +38,7 @@ export default function EventList() {
     staff: false,
   });
 
-  const all: Event[] = events();
+  const all = events() as unknown as Event[];
 
   const filtered = useMemo(() => {
     let list = all.filter((e) => (tab === 'past' ? isPast(e) : !isPast(e)));
@@ -48,30 +48,15 @@ export default function EventList() {
       list = list.filter((e) => e.title.toLowerCase().includes(needle));
     }
 
-    // price filters
     const priceOn = filters.free || filters.paid;
     if (priceOn) {
-      list = list.filter((e) => {
-        const p = e as unknown as PriceInfo;
-        return (filters.free && p.priceType === 'free') || (filters.paid && p.priceType === 'paid');
-      });
+      list = list.filter(
+        (e) => (filters.free && e.priceType === 'free') || (filters.paid && e.priceType === 'paid'),
+      );
     }
+    if (filters.participant) list = list.filter((e) => (e.openParticipantSlots ?? 0) > 0);
+    if (filters.staff) list = list.filter((e) => (e.openStaffSlots ?? 0) > 0);
 
-    // role filters
-    if (filters.participant) {
-      list = list.filter((e) => {
-        const s = e as unknown as SlotInfo;
-        return (s.openParticipantSlots ?? 0) > 0;
-      });
-    }
-    if (filters.staff) {
-      list = list.filter((e) => {
-        const s = e as unknown as SlotInfo;
-        return (s.openStaffSlots ?? 0) > 0;
-      });
-    }
-
-    // sort by start date
     list.sort((a, b) => getStart(a).getTime() - getStart(b).getTime());
     return list;
   }, [all, tab, q, filters]);

@@ -1,18 +1,20 @@
-import '@/styles/globals.css';
-import '@/styles/tokens.css';
-import React from 'react';
+import "@/styles/globals.css";
+import "@/styles/tokens.css";
+import React from "react";
 
 export const metadata = {
-  title: 'AU Impact',
-  description: 'Volunteering, fundraising, and student life at AU.'
+  title: "AU Impact",
+  description: "Volunteering, fundraising, and student life at AU.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body>
-        {children}
-      </body>
+      <body cz-shortcut-listen="true">{children}</body>
     </html>
   );
 }
