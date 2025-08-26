@@ -1,4 +1,3 @@
-// app/public/event/[id]/register/participant/page.tsx
 'use client';
 
 import { use } from 'react';
@@ -11,9 +10,7 @@ export default function ParticipantRegisterPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  // Next.js 15: unwrap the Promise params
   const { id } = use(params);
-
   const ev = getEventById(id);
   if (!ev) return notFound();
 
@@ -63,6 +60,7 @@ export default function ParticipantRegisterPage({
           </Link>
         </div>
 
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/images/line-qr.png"
           alt="Line QR"
