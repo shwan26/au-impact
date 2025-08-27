@@ -1,6 +1,7 @@
 // components/fundraising/DonateForm.tsx
 'use client';
 
+import Image from 'next/image';
 import { useState, useId } from 'react';
 
 export default function DonateForm({
@@ -90,7 +91,7 @@ export default function DonateForm({
         </Row>
 
         <Row label="PromptPay QR code">
-          <img
+          <Image
             src={bankInfo.qrUrl}
             alt="PromptPay QR code"
             className="h-40 w-40 rounded-md border object-contain"

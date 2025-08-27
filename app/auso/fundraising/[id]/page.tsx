@@ -5,9 +5,9 @@ import { getFundraisingById } from '@/lib/mock';
 export default async function EditFR({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
   const fr = getFundraisingById(id);
   if (!fr) return notFound();
 

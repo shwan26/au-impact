@@ -5,9 +5,9 @@ import { getEventById } from '@/lib/mock';
 export default async function EditEvent({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
   const event = getEventById(id);
   if (!event) return notFound();
 

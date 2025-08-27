@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthContext';
+import Image from 'next/image';
 
 function initials(name?: string, email?: string) {
   const base = name || email || '?';
@@ -50,8 +51,8 @@ export default function Header() {
                 className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-white text-red-700"
               >
                 {user.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
+                 
+                  <Image src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
                 ) : (
                   <span className="text-xs font-extrabold">{initials(user.name, user.email)}</span>
                 )}

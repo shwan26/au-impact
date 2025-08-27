@@ -5,9 +5,9 @@ import { getAnnouncementById } from '@/lib/mock';
 export default async function EditAn({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
   const a = getAnnouncementById(id);
   if (!a) return notFound();
 

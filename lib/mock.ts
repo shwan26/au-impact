@@ -1,5 +1,5 @@
 // lib/mock.ts
-import { Announcement, Event, Fundraising, Product } from '@/types/db';
+import { Announcement, Event, Fundraising, Merch } from '@/types/db';
 
 /* ----------------------------- Events (mock) ----------------------------- */
 
@@ -122,15 +122,92 @@ export function getFundraisingById(id: string) {
 
 /* ---------------------------- Products (mock) ---------------------------- */
 
-export function products(): Product[] {
-  return [
-    { id: '1', title: 'Club Tee', price: 299, description: '100% cotton', status: 'LIVE' },
-    { id: '2', title: 'Sticker Pack', price: 59, description: 'Vinyl stickers', status: 'LIVE' },
-  ];
-}
+export const merches: Merch[] = [
+  {
+    itemId: 'VME-JERSEY',
+    slug: 'vme-jersey-2024',
+    title: 'VME Jersey 2024',
+    description: 'Official VME jersey 2024 (pre-order).',
+    price: 270,
+    availableSizes: ['XS','S','M','L','XL','2XL','3XL'],
+    availableColors: [
+      { code: 'red', name: 'Red', thumbnail: '/images/merch/red.png' },
+      { code: 'blue', name: 'Blue', thumbnail: '/images/merch/blue.png' },
+      { code: 'beige',  name: 'Beige',  thumbnail: '/images/merch/beige.png'  },
+    ],
+    pickupPoint: 'CL 11st Floor',
+    pickupDate: '28 Jan - 14 Feb',
+    pickupTime: '10:30 - 15:00',
+    contactName: 'Johnson',
+    contactLineId: '@john33',
+    images: {
+      poster: { alt: 'Poster', url: '/images/merch/image.png' },
+      frontView: { alt: 'Front & Back', url: '/images/merch/image.png' },
+      sizeChart: { alt: 'Size Chart', url: '/images/merch/image.png' },
+      misc: [{ alt: 'Pickup', url: '/images/merch/image.png' }],
+    },
+  },
+  {
+    itemId: 'ARTS-JERSEY-2024',
+    slug: 'arts-jersey-2024',
+    title: 'Arts Jersey 2024',
+    description: 'Official ARTS jersey 2024 (pre-order).',
+    price: 270,
+    availableSizes: ['XS','S','M','L','XL','2XL','3XL'],
+    availableColors: [
+      { code: 'white', name: 'White', thumbnail: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s' },
+      { code: 'navy',  name: 'Navy',  thumbnail: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s'  },
+    ],
+    pickupPoint: 'CL 11st Floor',
+    pickupDate: '28 Jan - 14 Feb',
+    pickupTime: '10:30 - 15:00',
+    contactName: 'Johnson',
+    contactLineId: '@john33',
+    images: {
+      poster: { alt: 'Poster', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s' },
+      frontView: { alt: 'Front & Back', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s' },
+      sizeChart: { alt: 'Size Chart', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s' },
+      misc: [{ alt: 'Pickup', url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRhEisw0j5mOBnVkK6qVZ54-9vtJhH0qqZodg&s' }],
+    },
+  },
+  {
+    itemId: 'ABAC-POLO',
+    slug: 'abac-polo-new',
+    title: 'ABAC polo shirt (New)',
+    price: 390,
+    availableSizes: ['S','M','L','XL'],
+    availableColors: [{ code: 'white', name: 'White', thumbnail: '/images/merch/image.png' }],
+    images: { poster: { alt: 'Polo', url: '/images/merch/image.png' } },
+  },
+  {
+    itemId: 'AUFFC-JERSEY',
+    slug: 'aufcc-jersey-2024',
+    title: 'AUFFC Jersey 2024',
+    description: 'Official AUFFC jersey 2024 (pre-order).',
+    price: 270,
+    availableSizes: ['XS','S','M','L','XL','2XL','3XL'],
+    availableColors: [
+      { code: 'white', name: 'White', thumbnail: '/images/merch/image.png' },
+      { code: 'navy',  name: 'Navy',  thumbnail: '/images/merch/image.png'  },
+    ],
+    pickupPoint: 'CL 11st Floor',
+    pickupDate: '28 Jan - 14 Feb',
+    pickupTime: '10:30 - 15:00',
+    contactName: 'Johnson',
+    contactLineId: '@john33',
+    images: {
+      poster: { alt: 'Poster', url: '/images/merch/image.png' },
+      frontView: { alt: 'Front & Back', url: '/images/merch/image.png' },
+      sizeChart: { alt: 'Size Chart', url: '/images/merch/image.png' },
+      misc: [{ alt: 'Pickup', url: '/images/merch/image.png' }],
+    },
+  }
+  
+];
 
-export function getProductById(id: string) {
-  return products().find((e) => e.id === id);
+
+export function getMerchById(id: string) {
+  return merches.find((e) => e.itemId === id);
 }
 
 /* ------------------------- Announcements (mock) -------------------------- */
