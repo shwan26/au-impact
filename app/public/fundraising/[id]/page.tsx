@@ -3,6 +3,7 @@ import { use } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getFundraisingById } from '@/lib/mock';
+import Image from 'next/image';
 
 const fmtTHB = (n: number) => n.toLocaleString('en-US');
 
@@ -31,7 +32,7 @@ export default function FundraisingDetail({
       <div className="grid gap-8 md:grid-cols-3">
         <div className="md:col-span-1">
           {item.imageUrl && (
-            <img
+            <Image
               src={item.imageUrl}
               alt={item.title}
               className="w-full max-w-md rounded-xl object-cover"

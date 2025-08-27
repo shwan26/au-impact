@@ -5,6 +5,7 @@ import { use } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEventById } from '@/lib/mock';
+import Image from 'next/image';
 
 export default function StaffRegisterPage({
   params,
@@ -58,8 +59,8 @@ export default function StaffRegisterPage({
           </Link>
         </div>
 
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+   
+        <Image
           src="/images/line-qr.png"
           alt="Line QR"
           className="mt-4 h-48 w-48 rounded-md border object-contain"

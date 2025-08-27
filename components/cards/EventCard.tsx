@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import type { Event } from '@/types/db';
+import Image from 'next/image';
 
 const dateText = (ev: Event) => {
   const s = new Date(ev.startDate ?? ev.date);
@@ -22,12 +23,16 @@ export default function EventCard({ ev }: { ev: Event }) {
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white transition hover:shadow-md">
         {/* Consistent, normal-sized thumbnail */}
         {ev.imageUrl && (
-          <img
-            src={ev.imageUrl}
-            alt={ev.title}
-            loading="lazy"
-            className="h-56 w-full object-cover"   /* ~224px tall */
-          />
+          <div className="relative h-40 w-full overflow-hidden rounded-lg">
+            <Image
+              src={ev.imageUrl}
+              alt={ev.title}
+              fill
+              sizes="(max-width: 768px) 100vw, 400px"
+              className="object-cover"
+              loading="lazy"
+            />
+          </div>
         )}
 
         <div className="p-4">
