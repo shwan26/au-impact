@@ -16,7 +16,6 @@ export default function FundraisingCard({ item }: { item: Fundraising }) {
           <Image
             src={item.imageUrl}
             alt={item.title}
-            fill
             sizes="(max-width: 768px) 100vw, 640px"
             className="object-cover"
             loading="lazy"

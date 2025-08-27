@@ -1,6 +1,5 @@
 'use client';
 
-import { use } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEventById } from '@/lib/mock';
@@ -9,9 +8,9 @@ import Image from 'next/image';
 export default function ParticipantRegisterPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const ev = getEventById(id);
   if (!ev) return notFound();
 

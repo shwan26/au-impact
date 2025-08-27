@@ -2,28 +2,31 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { useCheckout } from '@/hooks/useCheckout';
 import type { CartItem } from '@/types/db';
 
-const keyOf = (i: CartItem) => `${i.itemId}-${i.size}-${i.color}`;
+const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
 
 export default function CheckoutSuccessPage() {
-  const cartItems = useCart((s) => s.items) as CartItem[] || [];
+  const cartItems = useCart((s) => s.items as CartItem[]);
   const removeFromCart = useCart((s) => s.remove);
   const clearSelection = useCheckout((s) => s.clear);
 
-  useEffect(() => {
+  const ranRef = useRef(false);
 
-    clearSelection();
- 
+  useEffect(() => {
+    if (ranRef.current) return;
+    ranRef.current = true;
+
+    clearSelection?.();
+
     try {
       const raw = sessionStorage.getItem('pp:lastPurchased');
-      const purchasedKeys: string[] = raw ? JSON.parse(raw) : [];
+      const purchasedKeys: unknown = raw ? JSON.parse(raw) : [];
 
       if (Array.isArray(purchasedKeys) && purchasedKeys.length > 0) {
-        // Remove matching items from the cart
         for (const item of cartItems) {
           if (purchasedKeys.includes(keyOf(item))) {
             removeFromCart(item);
@@ -31,13 +34,11 @@ export default function CheckoutSuccessPage() {
         }
       }
 
-
       sessionStorage.removeItem('pp:lastPurchased');
-    } catch (_) {
-  
+    } catch {
+      // ignore JSON/storage issues
     }
-   
-  }, []);
+  }, [cartItems, clearSelection, removeFromCart]);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 text-center">

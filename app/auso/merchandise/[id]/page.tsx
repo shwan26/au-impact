@@ -5,9 +5,9 @@ import { getMerchById } from '@/lib/mock';
 export default async function EditProduct({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = await params;
+  const { id } = params;
   const p = getMerchById(id);
   if (!p) return notFound();
 

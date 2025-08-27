@@ -1,12 +1,14 @@
+// app/public/merchandise/page.tsx
 'use client';
 
 import dynamic from 'next/dynamic';
 import { useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+
 import Pager from '@/components/ui/Pager';
 import { merches } from '@/lib/mock';
-import Link from 'next/link';
-import { useCart } from '@/hooks/useCart'; // 👈 add
+import { useCart } from '@/hooks/useCart';
 
 const MerchandiseList = dynamic(
   () => import('@/components/lists/MerchandiseList'),
@@ -21,7 +23,7 @@ export default function Page() {
   const q = (sp.get('q') || '').trim().toLowerCase();
   const page = Math.max(Number.parseInt(pageParam ?? '1', 10) || 1, 1);
 
-  // ✅ cart count (sum of quantities)
+  // cart count (sum of quantities)
   const { items } = useCart();
   const cartCount = useMemo(
     () => items.reduce((sum, it) => sum + (it.qty ?? 1), 0),
@@ -44,42 +46,31 @@ export default function Page() {
   const itemsPage = filtered.slice(start, start + PAGE_SIZE);
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '10px 10px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          gap: 12,
-        }}
-      >
-        <h1 style={{ fontSize: 24, fontWeight: 700 }}>Merchandise</h1>
+    <main className="mx-auto max-w-[1200px] px-3 py-4">
+      <div className="mb-5 flex items-center gap-3">
+        <h1 className="text-2xl font-semibold">Merchandise</h1>
 
         {/* simple search UI via querystring ?q= */}
-        <form method="get" action="/public/merchandise" style={{ marginLeft: 'auto' }}>
+        <form method="get" action="/public/merchandise" className="ml-auto">
           <input
             name="q"
             defaultValue={q}
             placeholder="search"
-            style={{
-              width: 210,
-              border: '1px solid #ddd',
-              borderRadius: 999,
-              padding: '6px 12px',
-              outline: 'none',
-            }}
+            className="w-[210px] rounded-full border border-gray-300 px-3 py-1 outline-none"
           />
         </form>
 
-        <Link href="/public/merchandise/cart" aria-label={`Cart with ${cartCount} item(s)`}>
+        <Link
+          href="/public/merchandise/cart"
+          aria-label={`Cart with ${cartCount} item(s)`}
+        >
           🛒 ({cartCount})
         </Link>
       </div>
 
       <MerchandiseList items={itemsPage} />
 
-      <div style={{ marginTop: 24 }}>
+      <div className="mt-6">
         <Pager
           page={clamped}
           totalPages={totalPages}

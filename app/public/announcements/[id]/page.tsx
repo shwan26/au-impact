@@ -2,7 +2,6 @@ import { getAnnouncementById } from '@/lib/mock';
 import { notFound } from 'next/navigation';
 import { formatDate } from '@/lib/format';
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default async function Page({
   params,
@@ -22,7 +21,7 @@ export default async function Page({
       <div className="mt-4 grid gap-6 lg:grid-cols-2 items-start">
         {a.photoUrl && (
           <div className="custom-aspect-ratio">
-            <Image
+            <img
               src={a.photoUrl}
               alt={a.topic}
               className="w-full h-full object-cover"

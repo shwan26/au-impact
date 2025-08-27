@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { getEventById } from '@/lib/mock';
 import RegisterButtons from '@/components/events/RegisterButtons';
 import type { Event as BaseEvent } from '@/types/db';
-import Image from 'next/image';
 
 type EventExtras = {
   startDate?: string;
@@ -48,8 +47,8 @@ export default function EventDetail({
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2">
           {ev.imageUrl && (
-            
-            <Image
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={ev.imageUrl}
               alt={ev.title}
               className="w-full max-w-xl rounded-xl object-cover"

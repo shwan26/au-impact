@@ -1,5 +1,5 @@
 // app/public/fundraising/[id]/donate/page.tsx
-import { use } from 'react';
+
 import { notFound } from 'next/navigation';
 import { getFundraisingById } from '@/lib/mock';
 import DonateForm from '@/components/fundraising/DonateForm';
@@ -7,9 +7,9 @@ import DonateForm from '@/components/fundraising/DonateForm';
 export default function DonatePage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const item = getFundraisingById(id);
   if (!item) return notFound();
 
