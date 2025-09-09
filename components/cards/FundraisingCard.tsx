@@ -2,38 +2,36 @@
 'use client';
 
 import Link from 'next/link';
-import type { Fundraising } from '@/types/db';
 import Image from 'next/image';
+import type { Fundraising as Base } from '@/types/db';
 
-const fmtTHB = (n: number) => n.toLocaleString('en-US');
+type FundItem = Base & { imageUrl?: string; currentDonation?: number };
 
-export default function FundraisingCard({ item }: { item: Fundraising }) {
+export default function FundraisingCard({ item }: { item: FundItem }) {
   return (
     <Link href={`/public/fundraising/${item.id}`} className="block group">
-      <div className="max-w-3xl">
-        {item.imageUrl && (
-        <div className="relative mb-4 h-56 w-full overflow-hidden rounded-lg md:h-64">
-          <Image
-            src={item.imageUrl}
-            alt={item.title}
-            sizes="(max-width: 768px) 100vw, 640px"
-            className="object-cover"
-            loading="lazy"
-          />
+      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition hover:shadow-md">
+        {/* ⇩ Sized wrapper + Image with `fill` satisfies Next's requirement */}
+        <div className="relative h-48 w-full">
+          {item.imageUrl && (
+            <Image
+              src={item.imageUrl}
+              alt={item.title}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover transition group-hover:scale-[1.01]"
+              priority={false}
+            />
+          )}
         </div>
-      )}
-        <h2 className="text-3xl font-extrabold md:text-4xl group-hover:underline">
-          {item.title}
-        </h2>
-        <div className="mt-2 text-base">
-          <div>
-            Current Donation:{' '}
-            <span className="font-extrabold">{fmtTHB(item.currentDonation ?? 0)} THB</span>
-          </div>
-          <div>
-            Expected Donation:{' '}
-            <span className="font-extrabold">{fmtTHB(item.goal)} THB</span>
-          </div>
+
+        <div className="p-4">
+          <h3 className="text-lg font-extrabold">{item.title}</h3>
+          {typeof item.currentDonation === 'number' && (
+            <p className="mt-1 text-sm text-zinc-600">
+              Raised: {item.currentDonation.toLocaleString('en-US')} THB
+            </p>
+          )}
         </div>
       </div>
     </Link>

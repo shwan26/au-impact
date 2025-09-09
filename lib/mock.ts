@@ -40,6 +40,22 @@ export function events(): Event[] {
       registeredStaff: 0,
       registeredParticipants: 0,
     },
+    {
+  id: '3',
+  title: 'Thai Reading',
+  date: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  startDate: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  endDate: new Date(Date.now() + 3 * 86_400_000).toISOString(),
+  summary: 'Competition for non-Thai students',
+  description: 'Register at the language center booth. Bring student ID.',
+  status: 'PENDING', // 👈 will show as "Pending" in AUSO table
+  priceType: 'free',
+  openStaffSlots: 2,
+  openParticipantSlots: 10,
+  imageUrl:
+    'https://images.unsplash.com/photo-1519682337058-a94d519337bc?q=80&w=1600&auto=format&fit=crop',
+}
+
   ];
 }
 
@@ -52,7 +68,7 @@ export function getEventById(id: string) {
 export function fundraising(): Fundraising[] {
   return [
 {
-  id: 'flood-2025',
+  id: '1',
   title: 'Northern Thailand Flood Relief',
   goal: 10_000,
   currentDonation: 1_000,
@@ -72,7 +88,7 @@ export function fundraising(): Fundraising[] {
   donationLink: 'https://d1csarkz8obe9u.cloudfront.net/posterpreviews/fundraising%2C-flood-relief-camp-flyer-design-template-bb9f9e5f066ea36add3f193791be9810_screen.jpg?ts=1698454654', 
 },
     {
-  id: 'au-debate-2025',
+  id: '2',
   title: 'AU Debate Society — Asian BP Championship Travel',
   goal: 120_000,
   currentDonation: 27_500,
@@ -92,7 +108,7 @@ export function fundraising(): Fundraising[] {
   donationLink: 'https://marketplace.canva.com/EAGkeWFglgo/1/0/1131w/canva-cream-illustrated-debate-competition-poster-_QJGWXw9gDc.jpg'
 },
 {
-  id: 'au-robotics-2025',
+  id: '3',
   title: 'AU Robotics Club — RoboCup Thailand Build & Travel',
   goal: 90_000,
   currentDonation: 15_000,
@@ -110,7 +126,27 @@ export function fundraising(): Fundraising[] {
   endDate:   '2025-09-01T00:00:00Z',
   location: 'E building, Robotics Lab',
   donationLink: 'https://d1ldvf68ux039x.cloudfront.net/thumbs/photos/2012/6438861/1000w_q95.jpg'
+},
+{
+  id: '4',
+  title: 'AU Student Scholarship Fund',
+  goal: 50000,
+  currentDonation: 12000,
+  summary: 'Raising support for student scholarships.',
+  description:
+    '🎓 Scholarship Fund\n' +
+    'Help provide financial aid to students in need.\n' +
+    'Your donation goes directly to tuition assistance.',
+  status: 'PENDING',                 // ← pending item
+  imageUrl: 'https://images.unsplash.com/photo-1523580846011-d3a5bc25702b?q=80&w=1600&auto=format&fit=crop',
+  organizerName: 'University Development',
+  contactLine: 'au-dev',
+  startDate: '2025-09-01T00:00:00Z',
+  endDate:   '2025-10-15T00:00:00Z',
+  location: 'CL Building Lobby'
 }
+
+
 
 
   ];
@@ -124,7 +160,7 @@ export function getFundraisingById(id: string) {
 
 export const merches: Merch[] = [
   {
-    itemId: 'VME-JERSEY',
+    itemId: '1',
     slug: 'vme-jersey-2024',
     title: 'VME Jersey 2024',
     description: 'Official VME jersey 2024 (pre-order).',
@@ -148,7 +184,7 @@ export const merches: Merch[] = [
     },
   },
   {
-    itemId: 'ARTS-JERSEY-2024',
+    itemId: '2',
     slug: 'arts-jersey-2024',
     title: 'Arts Jersey 2024',
     description: 'Official ARTS jersey 2024 (pre-order).',
@@ -171,7 +207,7 @@ export const merches: Merch[] = [
     },
   },
   {
-    itemId: 'ABAC-POLO',
+    itemId: '3',
     slug: 'abac-polo-new',
     title: 'ABAC polo shirt (New)',
     price: 390,
@@ -180,7 +216,7 @@ export const merches: Merch[] = [
     images: { poster: { alt: 'Polo', url: '/images/merch/image.png' } },
   },
   {
-    itemId: 'AUFFC-JERSEY',
+    itemId: '4',
     slug: 'aufcc-jersey-2024',
     title: 'AUFFC Jersey 2024',
     description: 'Official AUFFC jersey 2024 (pre-order).',
@@ -201,8 +237,19 @@ export const merches: Merch[] = [
       sizeChart: { alt: 'Size Chart', url: '/images/merch/image.png' },
       misc: [{ alt: 'Pickup', url: '/images/merch/image.png' }],
     },
-  }
-  
+  },
+  {
+  itemId: '5',
+  slug: 'au-hoodie-2025',
+  title: 'AU Hoodie 2025',
+  description: 'Cozy campus hoodie with AU crest.',
+  price: 690,
+  availableSizes: ['S','M','L','XL'],
+  availableColors: [{ code: 'black', name: 'Black', thumbnail: '/images/merch/image.png' }],
+  images: { poster: { alt: 'Hoodie', url: '/images/merch/image.png' } },
+  status: 'PENDING', // ← will render as “Pending”
+}
+
 ];
 
 
@@ -215,7 +262,7 @@ export function getMerchById(id: string) {
 export function announcements(): Announcement[] {
   return [
     {
-      id: 'A-001',
+      id: '1',
       topic: 'AU Traffic Law Enforcement',
       description: 'Drivers must have a license, helmets for riders, seat belts…',
       photoUrl: '/images/announcements/image.png',
@@ -223,7 +270,7 @@ export function announcements(): Announcement[] {
       status: 'LIVE',
     },
     {
-      id: 'A-002',
+      id: '2',
       topic: 'Songkran Festival Invitation',
       description: 'Join the Songkran activities and cultural shows.',
       photoUrl: '/images/announcements/image.png',
@@ -231,19 +278,19 @@ export function announcements(): Announcement[] {
       status: 'COMPLETE',
     },
     {
-      id: 'A-003',
+      id: '3',
       topic: 'No Vaping Policy Reminder',
       description: 'E-cigarettes are illegal in Thailand—keep our campus safe.',
       photoUrl: '/images/announcements/image.png',
       datePosted: '2025-03-30T02:00:00Z',
       status: 'LIVE',
     },
-    { id: 'A-004', topic: 'Earthquake Safety Tips', description: 'Drop, Cover, Hold on…', datePosted: '2025-03-25T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
-    { id: 'A-005', topic: 'Library Exam Hours', description: 'Open 7:00–24:00 during finals.', datePosted: '2025-05-01T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
-    { id: 'A-006', topic: 'Blood Donation Day', description: 'Register by Friday.', datePosted: '2025-04-20T02:00:00Z', status: 'COMPLETE', photoUrl: '/images/announcements/image.png' },
-    { id: 'A-007', topic: 'Parking Lot Maintenance', description: 'Zone C closed this weekend.', datePosted: '2025-04-22T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
-    { id: 'A-008', topic: 'Career Fair', description: '200+ companies on campus.', datePosted: '2025-05-15T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
-    { id: 'A-009', topic: 'Wellness Workshop', description: 'Mindfulness for exam stress.', datePosted: '2025-04-28T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
+    { id: '4', topic: 'Earthquake Safety Tips', description: 'Drop, Cover, Hold on…', datePosted: '2025-03-25T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
+    { id: '5', topic: 'Library Exam Hours', description: 'Open 7:00–24:00 during finals.', datePosted: '2025-05-01T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
+    { id: '6', topic: 'Blood Donation Day', description: 'Register by Friday.', datePosted: '2025-04-20T02:00:00Z', status: 'COMPLETE', photoUrl: '/images/announcements/image.png' },
+    { id: '7', topic: 'Parking Lot Maintenance', description: 'Zone C closed this weekend.', datePosted: '2025-04-22T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
+    { id: '8', topic: 'Career Fair', description: '200+ companies on campus.', datePosted: '2025-05-15T02:00:00Z', status: 'LIVE', photoUrl: '/images/announcements/image.png' },
+    { id: '9', topic: 'Wellness Workshop', description: 'Mindfulness for exam stress.', datePosted: '2025-04-28T02:00:00Z', status: 'PENDING', photoUrl: '/images/announcements/image.png' },
   ];
 }
 

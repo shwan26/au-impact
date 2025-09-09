@@ -1,73 +1,33 @@
-// components/layout/Header.tsx
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '@/components/auth/AuthContext';
-import Image from 'next/image';
-
-function initials(name?: string, email?: string) {
-  const base = name || email || '?';
-  return base
-    .split(/[ \.@_-]/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase())
-    .join('');
-}
+import { usePathname } from 'next/navigation';
 
 export default function Header() {
-  const { user, logout } = useAuth();
+  const pathname = (usePathname() ?? '').toLowerCase();
 
+  // Hide the public header on admin dashboards & their subpages
+  const hide =
+    pathname === '/auso' ||
+    pathname.startsWith('/auso/') ||
+    pathname === '/sau' ||
+    pathname.startsWith('/sau/');
+
+  if (hide) return null;
+
+  // Public site header
   return (
-    <header className="bg-red-700 text-white">
+    <div className="bg-red-700 text-white">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-        <div className="text-lg font-extrabold">AU Impact - SAU Portal</div>
-
-        {/* Right side */}
-        <div className="flex items-center gap-4 text-sm font-semibold">
-          <Link href="/public/event" className="hover:underline hidden sm:inline">
-            Event
-          </Link>
-          <Link href="/public/fundraising" className="hover:underline hidden sm:inline">
-            Fundraising
-          </Link>
-          <Link href="/public/announcements" className="hover:underline hidden sm:inline">
-            Announcements
-          </Link>
-
-          {!user ? (
-            <Link
-              href="/login"
-              className="rounded-md bg-white/10 px-3 py-1 hover:bg-white/20"
-            >
-              Login
-            </Link>
-          ) : (
-            <div className="flex items-center gap-3">
-              {/* tiny circular profile */}
-              <Link
-                href="/profile"
-                title={user.name || user.email}
-                className="grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-white text-red-700"
-              >
-                {user.avatarUrl ? (
-                 
-                  <Image src={user.avatarUrl} alt="avatar" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-xs font-extrabold">{initials(user.name, user.email)}</span>
-                )}
-              </Link>
-
-              <button
-                onClick={logout}
-                className="rounded-md bg-white/10 px-2 py-1 hover:bg-white/20"
-              >
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
+        <Link href="/" className="text-xl font-extrabold">AU Impact</Link>
+        <nav className="flex gap-6 text-sm font-semibold">
+          <Link href="/public/event">Event</Link>
+          <Link href="/public/fundraising">Fundraising</Link>
+          <Link href="/public/merchandise">Merchandise</Link>
+          <Link href="/public/announcements">Announcements</Link>
+          <Link href="/login">Login</Link>
+        </nav>
       </div>
-    </header>
+    </div>
   );
 }

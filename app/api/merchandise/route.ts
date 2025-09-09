@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { merches } from '@/lib/mock';
+import { merches as merchandiseMock } from '@/lib/mock';
 
 export async function GET() {
-  return NextResponse.json({ items: merches });
+  // Expose your mock "merches" via the /api/merchandise endpoint
+  return NextResponse.json({ items: merchandiseMock });
 }
