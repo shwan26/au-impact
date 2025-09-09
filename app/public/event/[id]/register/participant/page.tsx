@@ -1,16 +1,20 @@
+// app/public/event/[id]/register/participant/page.tsx
 'use client';
 
+import { use } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { getEventById } from '@/lib/mock';
-import Image from 'next/image';
 
 export default function ParticipantRegisterPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  // Next.js 15: unwrap Promise params
+  const { id } = use(params);
+
   const ev = getEventById(id);
   if (!ev) return notFound();
 
@@ -60,12 +64,16 @@ export default function ParticipantRegisterPage({
           </Link>
         </div>
 
-      
-        <Image
-          src="/images/line-qr.png"
-          alt="Line QR"
-          className="mt-4 h-48 w-48 rounded-md border object-contain"
-        />
+        <div className="mt-4">
+          <Image
+            src="/images/line-qr.png"
+            alt="Line QR"
+            width={192}
+            height={192}
+            className="rounded-md border object-contain"
+            priority
+          />
+        </div>
 
         <button
           type="submit"

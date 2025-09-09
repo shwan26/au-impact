@@ -26,7 +26,6 @@ export default function DonateForm({
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Replace with your upload + donation API call
     alert(
       `Submitted donation for ${fundraisingId}\n` +
         `Mode: ${showName ? 'show name' : 'anonymous'}\n` +
@@ -90,12 +89,22 @@ export default function DonateForm({
           <div className="py-2">{bankInfo.bankName}</div>
         </Row>
 
+        {/* QR code */}
         <Row label="PromptPay QR code">
-          <Image
-            src={bankInfo.qrUrl}
-            alt="PromptPay QR code"
-            className="h-40 w-40 rounded-md border object-contain"
-          />
+          {bankInfo.qrUrl ? (
+            <Image
+              src={bankInfo.qrUrl}
+              alt="PromptPay QR code"
+              width={160}       // ← required by next/image
+              height={160}      // ← required by next/image
+              className="rounded-md border object-contain"
+              priority
+            />
+          ) : (
+            <div className="rounded-md border bg-zinc-50 p-6 text-sm text-zinc-500">
+              QR not available
+            </div>
+          )}
         </Row>
 
         {/* Upload Slip */}
