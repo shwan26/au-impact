@@ -58,7 +58,7 @@ export default function LoginForm() {
         </button>
 
         <Link
-          href="/create-account"  // ⬅️ updated to your create page
+          href="/public/create-account"  // ⬅️ updated to your create page
           className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-center font-semibold hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-200"
         >
           Create Account

@@ -103,12 +103,10 @@ export default function SAUEventParticipantsPage() {
           <table className="w-full border-collapse text-sm">
             <thead className="bg-zinc-50 text-zinc-800">
               <tr className="border-b border-zinc-300">
-                {['No.', 'StudentID', 'Phone No.', 'Name', 'Attended'].map((h, i) => (
+                {['No.', 'Name', 'StudentID', 'Phone No.', 'Attended'].map((h, i) => (
                   <th
                     key={h}
-                    className={`px-3 py-2 text-left font-semibold ${
-                      i < 4 ? 'border-r border-zinc-300' : ''
-                    }`}
+                    className={`px-3 py-2 text-left font-semibold ${i < 4 ? 'border-r border-zinc-300' : ''}`}
                   >
                     {h}
                   </th>
@@ -119,9 +117,9 @@ export default function SAUEventParticipantsPage() {
               {staff.map((r, i) => (
                 <tr key={r.studentId} className="border-b border-zinc-200 last:border-b-0">
                   <td className="px-3 py-2 border-r border-zinc-200">{i + 1}.</td>
+                  <td className="px-3 py-2 border-r border-zinc-200">{r.name}</td>        {/* Name moved here */}
                   <td className="px-3 py-2 border-r border-zinc-200">{r.studentId}</td>
                   <td className="px-3 py-2 border-r border-zinc-200">{r.phone}</td>
-                  <td className="px-3 py-2 border-r border-zinc-200">{r.name}</td>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
@@ -157,12 +155,10 @@ export default function SAUEventParticipantsPage() {
           <table className="w-full border-collapse text-sm">
             <thead className="bg-zinc-50 text-zinc-800">
               <tr className="border-b border-zinc-300">
-                {['No.', 'StudentID', 'Phone No.', 'Name', 'Attended'].map((h, i) => (
+                {['No.', 'Name', 'StudentID', 'Phone No.', 'Attended'].map((h, i) => (
                   <th
                     key={h}
-                    className={`px-3 py-2 text-left font-semibold ${
-                      i < 4 ? 'border-r border-zinc-300' : ''
-                    }`}
+                    className={`px-3 py-2 text-left font-semibold ${i < 4 ? 'border-r border-zinc-300' : ''}`}
                   >
                     {h}
                   </th>
@@ -173,9 +169,9 @@ export default function SAUEventParticipantsPage() {
               {participants.map((r, i) => (
                 <tr key={r.studentId} className="border-b border-zinc-200 last:border-b-0">
                   <td className="px-3 py-2 border-r border-zinc-200">{i + 1}.</td>
+                  <td className="px-3 py-2 border-r border-zinc-200">{r.name}</td>        {/* Name moved here */}
                   <td className="px-3 py-2 border-r border-zinc-200">{r.studentId}</td>
                   <td className="px-3 py-2 border-r border-zinc-200">{r.phone}</td>
-                  <td className="px-3 py-2 border-r border-zinc-200">{r.name}</td>
                   <td className="px-3 py-2">
                     <input
                       type="checkbox"
