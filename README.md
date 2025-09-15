@@ -16,6 +16,8 @@ bun dev
 
 ```bash
 npm i @mui/material @emotion/react @emotion/cache @mui/icons-material @mui/material-nextjs
+
+npm install @supabase/ssr @supabase/supabase-js
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
