@@ -57,7 +57,14 @@ export default function AUSOMerchandisePage() {
             {rows.map((r) => (
               <tr key={r.pn} className="border-b border-zinc-300 last:border-b-0">
                 <td className="px-4 py-3 border-r border-zinc-300">{r.pn}</td>
-                <td className="px-4 py-3 border-r border-zinc-300">{r.name}</td>
+                <td className="px-4 py-3 border-r border-zinc-300">
+                  <Link
+                    href={`/auso/merchandise/${r.pn}`}
+                    className="underline underline-offset-2 hover:no-underline"
+                  >
+                    {r.name}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">{r.status}</td>
               </tr>
             ))}

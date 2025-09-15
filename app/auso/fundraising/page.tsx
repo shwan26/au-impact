@@ -33,27 +33,41 @@ export default function AUSOFundraisingPage() {
         <table className="w-full border-collapse text-sm">
           <thead className="bg-zinc-50 text-zinc-800">
             <tr className="border-b border-zinc-300">
-              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Project Number</th>
-              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Project Name</th>
-              <th className="px-4 py-3 text-left font-semibold">Status</th>
+              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
+                Project Number
+              </th>
+              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
+                Project Name
+              </th>
+              <th className="px-4 py-3 text-left font-semibold">
+                Status
+              </th>
             </tr>
           </thead>
-          <tbody className="text-zinc-900">
-            {rows.map((r, i) => (
-              <tr key={`${r.pn}-${i}`} className="border-b border-zinc-300 last:border-b-0">
-                <td className="px-4 py-3 border-r border-zinc-300">{r.pn}</td>
-                <td className="px-4 py-3 border-r border-zinc-300">{r.name}</td>
-                <td className="px-4 py-3">{r.status}</td>
-              </tr>
-            ))}
-            {!rows.length && (
-              <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
-                  No fundraising projects found.
-                </td>
-              </tr>
-            )}
-          </tbody>
+
+        <tbody className="text-zinc-900">
+          {rows.map((r, i) => (
+            <tr key={`${r.pn}-${i}`} className="border-b border-zinc-300 last:border-b-0">
+              <td className="px-4 py-3 border-r border-zinc-300">{r.pn}</td>
+              <td className="px-4 py-3 border-r border-zinc-300">
+                <Link
+                  href={`/auso/fundraising/${r.pn}`}
+                  className="underline underline-offset-2 hover:no-underline"
+                >
+                  {r.name}
+                </Link>
+              </td>
+              <td className="px-4 py-3">{r.status}</td>
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr>
+              <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
+                No fundraising projects found.
+              </td>
+            </tr>
+          )}
+        </tbody>
         </table>
       </div>
     </div>
