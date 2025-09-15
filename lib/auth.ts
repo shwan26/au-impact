@@ -1,8 +1,8 @@
-import { supabaseServer } from '@/lib/supabaseServer';
+import { createServerClientForServerComponents } from '@/lib/supabaseServer';
 
 
 export async function getSessionRole() {
-const supabase = supabaseServer();
+const supabase = createServerClientForServerComponents();
 const { data: { user } } = await supabase.auth.getUser();
 return (user?.app_metadata?.role as string) || 'user';
 }
