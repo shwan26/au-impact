@@ -92,7 +92,7 @@ export default async function ProfilePage() {
     </div>
     <div>
     <dt className="text-gray-500">LineID</dt>
-    <dd className="font-medium">{me.nationality ?? '—'}</dd>
+    <dd className="font-medium">{me.lineid ?? '—'}</dd>
     </div>
     </dl>
     </div>
