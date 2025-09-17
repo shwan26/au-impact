@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link'
 import { createServerClientForServerComponents } from '@/lib/supabaseServer';
 import LogoutButton from '@/components/auth/LogoutButton'
 
@@ -46,7 +47,14 @@ export default async function ProfilePage() {
   return (
     <section className="space-y-4">
     <h1 className="text-2xl font-semibold">My Profile</h1>
-
+    <div className="flex gap-2">
+          <Link
+            href="/public/profile/edit"
+            className="rounded border px-3 py-1.5 text-sm hover:bg-gray-50"
+          >
+            Edit account
+          </Link>
+        </div>
 
     {error && <p className="text-red-600 text-sm">Failed to load profile: {error.message}</p>}
 
