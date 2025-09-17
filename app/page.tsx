@@ -27,7 +27,7 @@ export default function HomePage() {
             <Link href="/public/merchandise" className="hover:underline">Merchandise</Link>
             <Link href="/public/announcements" className="hover:underline">Announcements</Link>
             <Link
-              href="/login"
+              href="/public/login"
               className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold hover:bg-white/20"
             >
               Login
