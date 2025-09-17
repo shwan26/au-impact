@@ -1,5 +1,6 @@
 import React from 'react';
 import Nav from '@/components/nav/Nav';
+import Footer from '@/components/layout/Footer';
 
 export default function PublicLayout({
   children,
@@ -8,6 +9,7 @@ export default function PublicLayout({
     <div>
       <Nav />
       <main className="container">{children}</main>
+      <Footer />
     </div>
   );
 }
