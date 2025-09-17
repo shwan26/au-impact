@@ -1,34 +1,28 @@
 // app/public/profile/edit/page.tsx
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import {
-  createServerClientForRoute,
-  createServerClientForServerComponents,
-} from '@/lib/supabaseServer'
+import { createServerClientForRoute, createServerClientForServerComponents } from '@/lib/supabaseServer'
 
 export const metadata = { title: 'Edit Profile' }
+export const dynamic = 'force-dynamic'
 
 function toInputDate(value?: string | null) {
   if (!value) return ''
   const dt = new Date(value)
   if (isNaN(dt.getTime())) return ''
-  // yyyy-mm-dd in local TZ
-  return new Date(dt.getTime() - dt.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 10)
+  return new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 }
 
 async function getMe() {
-  const supabase = createServerClientForServerComponents()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const supabase = await createServerClientForServerComponents()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/public/login?redirectedFrom=/public/profile/edit')
 
+  // Select using the names your app expects (these columns exist lowercased)
   const { data: me, error } = await supabase
-    .from('user') // your lowercase table
+    .from('User')
     .select(`
-      user_id,
+      User_ID,
       fullname,
       auemail,
       yearofstudy,
@@ -38,14 +32,14 @@ async function getMe() {
       phonenumber,
       studentid,
       dateofbirth,
-      lineid
+      lineid,
+      auth_uid
     `)
-    .eq('user_id', user.id)
+    .eq('auth_uid', user.id)
     .maybeSingle()
 
-  // If no row yet, we'll still render the form (empty defaults)
-  // and the server action will upsert a new row on save.
-  return { user, me, loadError: error ?? null }
+  if (error) throw new Error(error.message)
+  return { user, me }
 }
 
 export default async function EditProfilePage() {
@@ -53,39 +47,35 @@ export default async function EditProfilePage() {
 
   async function saveAction(formData: FormData) {
     'use server'
-    const supabase = createServerClientForRoute()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    const supabase = await createServerClientForRoute()
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/public/login?redirectedFrom=/public/profile/edit')
 
     const get = (k: string) => (formData.get(k)?.toString().trim() ?? '')
     const toNull = (s: string) => (s === '' ? null : s)
 
+    // ✅ Use LOWERCASE column names here (matches your actual table)
     const payload = {
-      user_id: user.id, // needed for upsert onConflict
       fullname: toNull(get('fullname')),
-      // Keep auemail read-only here; if you allow changes, include below:
-      // auemail: toNull(get('auemail')),
       yearofstudy: get('yearofstudy') ? Number(get('yearofstudy')) : null,
       faculty: toNull(get('faculty')),
       nickname: toNull(get('nickname')),
       nationality: toNull(get('nationality')),
       phonenumber: toNull(get('phonenumber')),
       studentid: toNull(get('studentid')),
-      dateofbirth: toNull(get('dateofbirth')), // yyyy-mm-dd works for DATE
+      dateofbirth: toNull(get('dateofbirth')),
       lineid: toNull(get('lineid')),
     }
 
-    // Create or update the profile row
-    await supabase
-      .from('user')
-      .upsert(payload, { onConflict: 'user_id' })
+    const { data, error } = await supabase
+      .from('User')
+      .update(payload)
+      .eq('auth_uid', user.id)
+      .select('User_ID')
+      .single()
 
-    // Optional: also sync auth user metadata (uncomment if you want)
-    // await supabase.auth.updateUser({
-    //   data: { full_name: payload.fullname, nickname: payload.nickname }
-    // })
+    if (error) throw new Error(`Update failed: ${error.message}`)
+    if (!data) throw new Error('Update affected 0 rows (check RLS and auth_uid linkage).')
 
     revalidatePath('/public/profile')
     redirect('/public/profile')
@@ -97,11 +87,7 @@ export default async function EditProfilePage() {
 
       <form action={saveAction} className="grid max-w-2xl grid-cols-1 gap-4">
         <Field label="Full name">
-          <input
-            name="fullname"
-            defaultValue={me?.fullname ?? ''}
-            className="w-full rounded border px-3 py-2"
-          />
+          <input name="fullname" defaultValue={me?.fullname ?? ''} className="w-full rounded border px-3 py-2" />
         </Field>
 
         <Field label="AU Email">
@@ -115,18 +101,10 @@ export default async function EditProfilePage() {
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Student ID">
-            <input
-              name="studentid"
-              defaultValue={me?.studentid ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="studentid" defaultValue={me?.studentid ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
           <Field label="Faculty">
-            <input
-              name="faculty"
-              defaultValue={me?.faculty ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="faculty" defaultValue={me?.faculty ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
         </div>
 
@@ -141,28 +119,16 @@ export default async function EditProfilePage() {
             />
           </Field>
           <Field label="Nickname">
-            <input
-              name="nickname"
-              defaultValue={me?.nickname ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="nickname" defaultValue={me?.nickname ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Phone">
-            <input
-              name="phonenumber"
-              defaultValue={me?.phonenumber ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="phonenumber" defaultValue={me?.phonenumber ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
           <Field label="Nationality">
-            <input
-              name="nationality"
-              defaultValue={me?.nationality ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="nationality" defaultValue={me?.nationality ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
         </div>
 
@@ -176,27 +142,13 @@ export default async function EditProfilePage() {
             />
           </Field>
           <Field label="Line ID">
-            <input
-              name="lineid"
-              defaultValue={me?.lineid ?? ''}
-              className="w-full rounded border px-3 py-2"
-            />
+            <input name="lineid" defaultValue={me?.lineid ?? ''} className="w-full rounded border px-3 py-2" />
           </Field>
         </div>
 
         <div className="mt-2 flex gap-3">
-          <button
-            type="submit"
-            className="rounded bg-gray-900 px-4 py-2 text-white"
-          >
-            Save changes
-          </button>
-          <a
-            href="/public/profile"
-            className="rounded border px-4 py-2 hover:bg-gray-50"
-          >
-            Cancel
-          </a>
+          <button type="submit" className="rounded bg-gray-900 px-4 py-2 text-white">Save changes</button>
+          <a href="/public/profile" className="rounded border px-4 py-2 hover:bg-gray-50">Cancel</a>
         </div>
       </form>
     </section>

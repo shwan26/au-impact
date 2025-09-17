@@ -1,33 +1,48 @@
 // lib/supabaseServer.ts
 import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-/** Use this in Server Components (read-only cookies). */
-export function createServerClientForServerComponents() {
+/**
+ * Use this in Server Components. It must NOT try to write cookies
+ * (Next will throw). Let middleware or route actions do refresh writes.
+ */
+export async function createServerClientForServerComponents() {
+  const store = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async get(name: string) { return (await cookies()).get(name)?.value },
-        async set() {}, // no-ops in RSC
-        async remove() {},
+        get(name: string) {
+          return store.get(name)?.value
+        },
+        // No-ops to avoid "Cookies can only be modified..." in RSC
+        set(_name: string, _value: string, _options: CookieOptions) {},
+        remove(_name: string, _options: CookieOptions) {},
       },
     }
   )
 }
 
-/** Use this ONLY in Route Handlers or Server Actions (mutable cookies). */
-export function createServerClientForRoute() {
-  const store = cookies() // mutable here
+/**
+ * Use this ONLY in Route Handlers / Server Actions (can write cookies).
+ */
+export async function createServerClientForRoute() {
+  const store = await cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { return store.get(name)?.value },
-        set(name: string, value: string, options: any) { store.set({ name, value, ...options }) },
-        remove(name: string, options: any) { store.set({ name, value: '', ...options, maxAge: 0 }) },
+        get(name: string) {
+          return store.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          store.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          store.set({ name, value: '', ...options, maxAge: 0 })
+        },
       },
     }
   )

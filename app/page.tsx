@@ -5,6 +5,7 @@ import { events, merches } from '@/lib/mock';
 import type { Event, Merch } from '@/types/db';
 import PosterCard from '@/components/home/PosterCard';
 import MerchCard from '@/components/home/MerchCard';
+import Footer from '@/components/layout/Footer';
 
 type EventWithImage = Event & { imageUrl?: string };
 
@@ -82,6 +83,8 @@ export default function HomePage() {
             ))}
           </div>
         </section>
+
+        {/* <Footer /> */}
       </main>
     </>
   );
