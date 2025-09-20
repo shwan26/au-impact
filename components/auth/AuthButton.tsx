@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function AuthButton(){
   const { user, logout } = useAuth();
-  if (!user) return <Link href="/public/login">Login</Link>;
+  if (!user) return <Link href="/login">Login</Link>;
   return (
     <div style={{display:'flex',gap:8,alignItems:'center'}}>
       <span style={{color:'var(--text-muted)'}}>{user.email} • {user.role}</span>

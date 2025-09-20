@@ -1,16 +1,21 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { getAnnouncementById } from '@/lib/mock';
-import type { Announcement } from '@/types/db';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 
-function toAnnouncementNumber(id: string) {
-  const digits = id.replace(/\D/g, '').padStart(6, '0') || '000000';
-  return `A${digits}`;
-}
+type Row = {
+  announcementid: number;
+  topic: string;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string;
+  status: 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+  sau_id: number | null;
+  auso_id: number | null;
+};
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function RowBox({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
       <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>
@@ -21,19 +26,70 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function SAUEditAnnouncementPage() {
   const params = useParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-  const router = useRouter();
+  const idStr = Array.isArray(params.id) ? params.id[0] : params.id;
+  const idNum = useMemo(() => Number(idStr), [idStr]);
 
-  const a = getAnnouncementById(id);
-  if (!a) return <div className="p-6">Announcement not found.</div>;
+  const [item, setItem] = useState<Row | null>(null);
+  const [topic, setTopic] = useState('');
+  const [description, setDescription] = useState('');
+  const [photourl, setPhotourl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    // UI-only per your request (no backend call)
-    alert('Announcement saved (demo).');
-    // stay on page or go back:
-    // router.push('/sau/announcements');
-  };
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/announcements/${idNum}`, { cache: 'no-store' });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Failed to load');
+        if (!cancelled) {
+          setItem(json);
+          setTopic(json.topic ?? '');
+          setDescription(json.description ?? '');
+          setPhotourl(json.photourl ?? '');
+        }
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || 'Error loading announcement');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [idNum]);
+
+  async function save(newStatus: 'DRAFT' | 'PENDING') {
+    if (!item) return;
+    try {
+      setSaving(true);
+      setErr(null);
+      const res = await fetch(`/api/announcements/${idNum}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          Topic: topic,
+          Description: description || null,
+          PhotoURL: photourl || null,
+          Status: newStatus,               // ✅ matches DB constraint
+          SAU_ID: item.sau_id,
+          AUSO_ID: item.auso_id,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Update failed');
+      setItem(json);
+      alert(newStatus === 'PENDING' ? 'Submitted for review.' : 'Saved as draft.');
+    } catch (e: any) {
+      setErr(e?.message || 'Update error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div className="p-6">Loading…</div>;
+  if (err) return <div className="p-6 text-red-600">{err}</div>;
+  if (!item) return <div className="p-6">Announcement not found.</div>;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-4">
@@ -47,46 +103,65 @@ export default function SAUEditAnnouncementPage() {
         </Link>
       </div>
 
-      {/* Meta */}
       <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
         <div className="py-2 text-sm font-medium text-zinc-700">Activity Unit</div>
         <div className="py-2">Student Council of Theodore Maria School of Arts</div>
 
         <div className="py-2 text-sm font-medium text-zinc-700">Announcement Number</div>
-        <div className="py-2 font-mono">{toAnnouncementNumber(a.id)}</div>
+        <div className="py-2 font-mono">A{String(item.announcementid).padStart(6, '0')}</div>
       </div>
 
-      {/* Form */}
-      <form onSubmit={onSubmit} className="space-y-4">
-        <Row label="Announcement Topic">
+      <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+        <RowBox label="Announcement Topic">
           <input
-            defaultValue={a.topic}
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           />
-        </Row>
+        </RowBox>
 
-        <Row label="Description">
+        <RowBox label="Description">
           <textarea
             rows={4}
-            defaultValue={a.description ?? ''}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           />
-        </Row>
+        </RowBox>
 
-        <Row label="Overview Photo">
-          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
-            <span className="text-xl">＋</span>
-            <span>Upload .png, .jpg, .jpeg</span>
-            <input type="file" accept="image/png,image/jpeg" className="hidden" />
-          </label>
-        </Row>
+        <RowBox label="Overview Photo URL">
+          <input
+            value={photourl}
+            onChange={(e) => setPhotourl(e.target.value)}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+            placeholder="https://…"
+          />
+        </RowBox>
 
-        <div className="pt-2">
+        <RowBox label="Status">
+          <input
+            readOnly
+            value={item.status}
+            className="w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm bg-zinc-50"
+          />
+        </RowBox>
+
+        <div className="flex items-center gap-3 pt-2">
           <button
-            type="submit"
-            className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300"
+            type="button"
+            disabled={saving}
+            onClick={() => save('PENDING')}
+            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-900 disabled:opacity-60"
           >
-            Save
+            {saving ? 'Saving…' : 'Submit for review (PENDING)'}
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => save('DRAFT')}
+            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
+          >
+            {saving ? 'Saving…' : 'Save draft (DRAFT)'}
           </button>
         </div>
       </form>

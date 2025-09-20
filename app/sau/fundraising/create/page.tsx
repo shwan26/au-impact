@@ -18,19 +18,59 @@ export default function SAUCreateFundraisingPage() {
   const [posterFiles, setPosterFiles] = useState<FileList | null>(null);
   const [qrFile, setQrFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setErr(null);
     setSubmitting(true);
 
-    // 👉 No backend writing: just succeed and go back to list
-    alert('Fundraising created successfully.');
-    router.push('/sau/fundraising');
+    try {
+      const fd = new FormData(e.currentTarget);
+
+      // Map form -> API payload
+      const payload = {
+        title: String(fd.get('projectName') || ''),
+        organizerName: String(fd.get('organizerName') || ''),
+        contactLine: String(fd.get('organizerLineId') || ''),
+        location: String(fd.get('eventVenue') || ''),
+        startDate: String(fd.get('dateFrom') || '') || null,
+        endDate: String(fd.get('dateTo') || '') || null,
+        goal: fd.get('expectedAmount') ? Number(fd.get('expectedAmount')) : null,
+        description: String(fd.get('caption') || ''),
+        // This project number is UI only; not stored unless your API supports it.
+        // projectNumber,
+        status: 'PENDING' as const,
+      };
+
+      const res = await fetch('/api/fundraising', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to create fundraising');
+
+      alert('Fundraising created successfully.');
+      router.push('/sau/fundraising');
+      router.refresh();
+    } catch (e: any) {
+      setErr(e?.message || 'Error creating fundraising');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-6">
       <h1 className="text-2xl font-extrabold">Fundraising</h1>
+
+      {err && (
+        <div className="mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {err}
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <Row label="Activity Unit">
@@ -66,7 +106,7 @@ export default function SAUCreateFundraisingPage() {
 
         <Field label="Expected Money Amount" name="expectedAmount" type="number" min={0} />
 
-        {/* Upload Poster */}
+        {/* Upload Poster (UI only) */}
         <Row label="Upload Poster">
           <label className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
@@ -89,7 +129,7 @@ export default function SAUCreateFundraisingPage() {
         <Field label="Bank Book Account" name="bankBookAccount" />
         <Field label="Bank Name" name="bankName" />
 
-        {/* PromptPay QR */}
+        {/* PromptPay QR (UI only) */}
         <Row label="PromptPay QR code">
           <label className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
@@ -118,7 +158,7 @@ export default function SAUCreateFundraisingPage() {
   );
 }
 
-/* ---------- small helpers (same style as your other forms) ---------- */
+/* ---------- helpers ---------- */
 
 function Row({
   label,

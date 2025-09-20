@@ -1,21 +1,27 @@
 // app/public/fundraising/[id]/donate/page.tsx
-import { use } from 'react';
+import { unstable_noStore as noStore } from 'next/cache';
 import { notFound } from 'next/navigation';
-import { getFundraisingById } from '@/lib/mock';
 import DonateForm from '@/components/fundraising/DonateForm';
 
-export default function DonatePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  // Next 15: unwrap Promise params
-  const { id } = use(params);
+function getBaseUrl() {
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+  if (process.env.NEXT_PUBLIC_SITE_URL) return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
+  return 'http://localhost:3000';
+}
 
-  const item = getFundraisingById(id);
-  if (!item) return notFound();
+export default async function DonatePage(
+  props: { params: Promise<{ id: string }> }
+) {
+  noStore();
+  const { id } = await props.params;
 
-  // You can override these with fields on your mock if you later add them.
+  // make sure the campaign exists (and fetch bank info if you store it)
+  const res = await fetch(`${getBaseUrl()}/api/fundraising/${id}`, {
+    cache: 'no-store',
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) return notFound();
+
   const bankInfo = {
     bankBookName: 'Krungsri Bank',
     bankBookAccount: '4320596868',
