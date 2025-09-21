@@ -9,14 +9,12 @@ const ROLE_MAP: Record<string, 'sau' | 'auso'> = {
 };
 
 function requiredRoleFor(pathname: string): 'sau' | 'auso' | null {
-  // Check for exact match in ROLE_MAP
-  if (ROLE_MAP[pathname]) return ROLE_MAP[pathname];
-  // Check for prefix match for section roots
-  for (const key of Object.keys(ROLE_MAP)) {
-    if (pathname.startsWith(key + '/')) {
-      return ROLE_MAP[key];
-    }
-  }
+  // Exact matches for landing pages
+  if (pathname === '/portal/sau') return 'sau';
+  if (pathname === '/portal/auso') return 'auso';
+  // Prefix matches for sections
+  if (pathname === '/sau' || pathname.startsWith('/sau/')) return 'sau';
+  if (pathname == '/auso' || pathname.startsWith('/auso/')) return 'auso';
   return null;
 }
 
