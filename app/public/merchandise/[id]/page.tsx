@@ -1,3 +1,4 @@
+// app/public/merchandise/[id]/page.tsx
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -5,9 +6,6 @@ import { notFound } from 'next/navigation';
 import type { Merch } from '@/types/db';
 import { merches } from '@/lib/mock';
 import { CartButton, PurchaseForm } from './MerchClient';
-
-
-
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,7 +24,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
-      {/* Top bar */}
       <div className="flex items-center justify-between">
         <Link href="/public/merchandise" className="text-sm underline">
           ← Back to Merchandise
@@ -38,22 +35,16 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         Merchandise – {merch.title}
       </h1>
 
-      {/* Image tiles */}
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         {tiles.map((img, i) => (
-          <div
-            key={i}
-            className="relative aspect-square overflow-hidden rounded-xl"
-          >
+          <div key={i} className="relative aspect-square overflow-hidden rounded-xl">
             <Image src={img.url} alt={img.alt} fill className="object-cover" />
           </div>
         ))}
       </div>
 
-      {/* Price */}
       <p className="mt-6 text-3xl font-extrabold">{merch.price} Baht</p>
 
-      {/* Interactive order form (client) */}
       <PurchaseForm merch={merch} />
     </main>
   );

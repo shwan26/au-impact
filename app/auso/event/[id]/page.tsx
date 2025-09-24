@@ -1,47 +1,41 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 
 type ApiEvent = {
-  // API payload (server maps DB -> these keys)
   EventID: number;
   Title: string;
   Description?: string | null;
   Venue?: string | null;
-  StartDateTime?: string | null;     // ISO
-  EndDateTime?: string | null;       // ISO
+  StartDateTime?: string | null;
+  EndDateTime?: string | null;
   Fee?: number | null;
   OrganizerName?: string | null;
   OrganizerLineID?: string | null;
   MaxParticipant?: number | null;
-  ParticipantDeadline?: string | null; // ISO date/datetime
+  ParticipantDeadline?: string | null;
   MaxStaff?: number | null;
-  MaxStaffDeadline?: string | null;    // ISO date/datetime
+  MaxStaffDeadline?: string | null;
   ScholarshipHours?: number | null;
-  Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | string; // if your table has Status
+  Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | 'REJECTED' | 'DRAFT' | 'UNKNOWN' | string;
 };
 
 function toProjectNumber(rawId?: number | string) {
   const digits = String(rawId ?? '').replace(/\D/g, '').padStart(6, '0') || '000000';
   return `E${digits}`;
 }
-
 function toLocalDT(iso?: string | null) {
   if (!iso) return '';
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mi = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 export default function AUSOEventEditPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const search = useSearchParams();
   const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const [data, setData] = useState<ApiEvent | null>(null);
@@ -66,40 +60,46 @@ export default function AUSOEventEditPage() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [id]);
 
   const startDefault = useMemo(() => toLocalDT(data?.StartDateTime), [data]);
-  const endDefault = useMemo(() => toLocalDT(data?.EndDateTime), [data]);
+  const endDefault   = useMemo(() => toLocalDT(data?.EndDateTime), [data]);
 
-  async function onSave(e: React.FormEvent<HTMLFormElement>) {
+  async function saveFields(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!data) return;
 
     const fd = new FormData(e.currentTarget);
+    const toISO = (name: string) => {
+      const v = String(fd.get(name) || '');
+      return v ? new Date(v).toISOString() : null;
+    };
+    const num = (name: string, fallback: number | null) => {
+      const raw = fd.get(name);
+      if (raw === null || raw === '') return fallback;
+      const n = Number(raw);
+      return Number.isFinite(n) ? n : fallback;
+    };
 
-    // Build update payload (PascalCase keys expected by your API routes)
     const payload: Record<string, any> = {
-      Title: String(fd.get('projectName') || data.Title),
-      Description: String(fd.get('description') || data.Description || ''),
-      Venue: String(fd.get('eventVenue') || data.Venue || ''),
-      StartDateTime: fd.get('startDate') ? new Date(String(fd.get('startDate'))).toISOString() : data.StartDateTime ?? null,
-      EndDateTime: fd.get('endDate') ? new Date(String(fd.get('endDate'))).toISOString() : data.EndDateTime ?? null,
-      Fee: fd.get('registrationFee') ? Number(fd.get('registrationFee')) : (data.Fee ?? null),
-      OrganizerName: String(fd.get('organizerName') || data.OrganizerName || ''),
-      OrganizerLineID: String(fd.get('organizerLineId') || data.OrganizerLineID || ''),
-      MaxParticipant: fd.get('maxParticipants') ? Number(fd.get('maxParticipants')) : (data.MaxParticipant ?? null),
-      ParticipantDeadline: fd.get('participantDeadline')
+      Title: String(fd.get('projectName') || data.Title).trim(),
+      Description: String(fd.get('description') ?? data.Description ?? '').trim(),
+      Venue: String(fd.get('eventVenue') ?? data.Venue ?? '').trim(),
+      StartDateTime: toISO('startDate') ?? data.StartDateTime ?? null,
+      EndDateTime: toISO('endDate') ?? data.EndDateTime ?? null,
+      Fee: num('registrationFee', data.Fee ?? null),
+      OrganizerName: String(fd.get('organizerName') ?? data.OrganizerName ?? ''),
+      OrganizerLineID: String(fd.get('organizerLineId') ?? data.OrganizerLineID ?? ''),
+      MaxParticipant: num('maxParticipants', data.MaxParticipant ?? null),
+      ParticipantDeadline: String(fd.get('participantDeadline') || '')
         ? new Date(String(fd.get('participantDeadline'))).toISOString()
         : data.ParticipantDeadline ?? null,
-      MaxStaff: fd.get('maxStaff') ? Number(fd.get('maxStaff')) : (data.MaxStaff ?? null),
-      MaxStaffDeadline: fd.get('staffDeadline')
+      MaxStaff: num('maxStaff', data.MaxStaff ?? null),
+      MaxStaffDeadline: String(fd.get('staffDeadline') || '')
         ? new Date(String(fd.get('staffDeadline'))).toISOString()
         : data.MaxStaffDeadline ?? null,
-      ScholarshipHours: fd.get('scholarHours') ? Number(fd.get('scholarHours')) : (data.ScholarshipHours ?? null),
-      // Status: keep existing unless you want to change it here
+      ScholarshipHours: num('scholarHours', data.ScholarshipHours ?? null),
       Status: data.Status ?? 'PENDING',
     };
 
@@ -122,47 +122,24 @@ export default function AUSOEventEditPage() {
     }
   }
 
-  async function onApprove() {
-    if (!data) return;
+  async function setStatus(status: 'LIVE' | 'PENDING' | 'REJECTED' | 'COMPLETE' | 'DRAFT') {
     try {
       setSaving(true);
       setErr(null);
       const res = await fetch(`/api/events/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        // If your Event table doesn't have "Status", this will be ignored by your API (or error).
-        body: JSON.stringify({ Status: 'LIVE' }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Failed to approve');
-      setData(json as ApiEvent);
-      alert('Marked as Approved.');
-      router.push('/auso/events');
-    } catch (e: any) {
-      setErr(e?.message || 'Error while approving');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function onNotApprove() {
-    if (!data) return;
-    try {
-      setSaving(true);
-      setErr(null);
-      const res = await fetch(`/api/events/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        // Use PENDING to represent "not approved yet". If you have REJECTED, change this.
-        body: JSON.stringify({ Status: 'PENDING' }),
+        body: JSON.stringify({ Status: status }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || 'Failed to update status');
       setData(json as ApiEvent);
-      alert('Marked as Not Approved.');
-      router.push('/auso/events');
+
+      // After approve/reject, go back to list, preserving current tab if relevant
+      const curTab = search.get('fromTab') || (status === 'LIVE' ? 'APPROVED' : 'PENDING');
+      router.push(`/auso/event?tab=${curTab}`);
     } catch (e: any) {
-      setErr(e?.message || 'Error while updating');
+      setErr(e?.message || 'Error while updating status');
     } finally {
       setSaving(false);
     }
@@ -172,14 +149,13 @@ export default function AUSOEventEditPage() {
   if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
   if (!data) return <div className="p-6">Event not found.</div>;
 
-  // Simple defaults for radio groups
   const paidDefault: 'paid' | 'free' = (data.Fee ?? 0) > 0 ? 'paid' : 'free';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
       <h1 className="text-2xl font-extrabold">Events</h1>
 
-      <form onSubmit={onSave} className="mt-4 space-y-4">
+      <form onSubmit={saveFields} className="mt-4 space-y-4">
         <Row label="Activity Unit">
           <div className="py-2">Student Council of Theodore Maria School of Arts</div>
         </Row>
@@ -217,6 +193,7 @@ export default function AUSOEventEditPage() {
           min={0}
           defaultValue={data.MaxParticipant ?? 0}
         />
+
         <Row label="Deadline for Participant">
           <input
             name="participantDeadline"
@@ -224,20 +201,6 @@ export default function AUSOEventEditPage() {
             defaultValue={data.ParticipantDeadline ? data.ParticipantDeadline.slice(0, 10) : ''}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           />
-        </Row>
-
-        {/* Recruiting staff */}
-        <Row label="Recruiting staff">
-          <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2">
-              <input type="radio" name="recruitStaff" defaultChecked={(data.MaxStaff ?? 0) > 0} />
-              <span>Yes</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" name="recruitStaff" defaultChecked={(data.MaxStaff ?? 0) === 0} />
-              <span>No</span>
-            </label>
-          </div>
         </Row>
 
         <Field
@@ -264,7 +227,6 @@ export default function AUSOEventEditPage() {
           defaultValue={data.ScholarshipHours ?? 0}
         />
 
-        {/* Paid or Free */}
         <Row label="Paid or free">
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
@@ -286,7 +248,6 @@ export default function AUSOEventEditPage() {
           defaultValue={data.Fee ?? 0}
         />
 
-        {/* Project Description */}
         <Row label="Project Description">
           <textarea
             name="description"
@@ -296,33 +257,47 @@ export default function AUSOEventEditPage() {
           />
         </Row>
 
-        {/* STATUS row with Approve / Not Approve */}
         <Row label="Status">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={onApprove}
+              onClick={() => setStatus('LIVE')}
               disabled={saving}
               className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
             >
-              Approve
+              Approve (Live)
             </button>
             <button
               type="button"
-              onClick={onNotApprove}
+              onClick={() => setStatus('PENDING')}
               disabled={saving}
               className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
             >
-              Not Approve
+              Move to Pending
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('REJECTED')}
+              disabled={saving}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              Reject
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('COMPLETE')}
+              disabled={saving}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              Mark Complete
             </button>
           </div>
         </Row>
 
-        {/* Bottom buttons */}
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <button
             type="button"
-            onClick={() => router.push('/auso/events')}
+            onClick={() => router.back()}
             className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
           >
             Back
@@ -350,7 +325,6 @@ function Row({ label, children }: { label?: string; children: React.ReactNode })
     </div>
   );
 }
-
 function Field({
   label,
   name,

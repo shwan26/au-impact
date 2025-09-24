@@ -19,22 +19,47 @@ type Order = {
 // In-memory store for demo/mock purposes
 const __orders: Order[] = [];
 
-export async function GET() {
+function isOrderItem(obj: any): obj is OrderItem {
+  return (
+    typeof obj?.itemId === 'string' &&
+    typeof obj?.qty === 'number' &&
+    typeof obj?.price === 'number'
+  );
+}
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+
+  if (id) {
+    const order = __orders.find((o) => o.id === id);
+    if (!order) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json(order);
+  }
+
   return NextResponse.json(__orders);
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
 
-  // Minimal validation (adjust as needed)
-  if (!Array.isArray(body?.items) || typeof body?.total !== 'number') {
+  if (
+    typeof (body as any)?.total !== 'number' ||
+    !Array.isArray((body as any)?.items) ||
+    !(body as any).items.every(isOrderItem)
+  ) {
     return NextResponse.json({ error: 'Invalid order payload' }, { status: 400 });
   }
 
   const order: Order = {
     id: globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2),
-    items: body.items,
-    total: body.total,
+    items: (body as any).items,
+    total: (body as any).total,
     createdAt: new Date().toISOString(),
   };
 

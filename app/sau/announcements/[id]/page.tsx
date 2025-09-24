@@ -4,16 +4,42 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 
-type Row = {
-  announcementid: number;
+type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+
+type ApiRow = {
+  AnnouncementID: number;
+  Topic: string;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string;
+  Status: Status;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
+};
+
+type UiRow = {
+  announcementId: number;
   topic: string;
   description: string | null;
-  photourl: string | null;
-  dateposted: string;
-  status: 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
-  sau_id: number | null;
-  auso_id: number | null;
+  photoUrl: string | null;
+  datePosted: string;
+  status: Status;
+  sauId: number | null;
+  ausoId: number | null;
 };
+
+function fromApi(r: ApiRow): UiRow {
+  return {
+    announcementId: r.AnnouncementID,
+    topic: r.Topic,
+    description: r.Description,
+    photoUrl: r.PhotoURL,
+    datePosted: r.DatePosted,
+    status: r.Status,
+    sauId: r.SAU_ID,
+    ausoId: r.AUSO_ID,
+  };
+}
 
 function RowBox({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -29,10 +55,10 @@ export default function SAUEditAnnouncementPage() {
   const idStr = Array.isArray(params.id) ? params.id[0] : params.id;
   const idNum = useMemo(() => Number(idStr), [idStr]);
 
-  const [item, setItem] = useState<Row | null>(null);
+  const [item, setItem] = useState<UiRow | null>(null);
   const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
-  const [photourl, setPhotourl] = useState('');
+  const [photoUrl, setPhotoUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -41,14 +67,19 @@ export default function SAUEditAnnouncementPage() {
     let cancelled = false;
     (async () => {
       try {
+        setLoading(true);
+        setErr(null);
         const res = await fetch(`/api/announcements/${idNum}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || 'Failed to load');
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || 'Failed to load');
+        const json = text ? (JSON.parse(text) as ApiRow) : null;
+        if (!json) throw new Error('Not found');
+        const mapped = fromApi(json);
         if (!cancelled) {
-          setItem(json);
-          setTopic(json.topic ?? '');
-          setDescription(json.description ?? '');
-          setPhotourl(json.photourl ?? '');
+          setItem(mapped);
+          setTopic(mapped.topic ?? '');
+          setDescription(mapped.description ?? '');
+          setPhotoUrl(mapped.photoUrl ?? '');
         }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Error loading announcement');
@@ -61,6 +92,9 @@ export default function SAUEditAnnouncementPage() {
 
   async function save(newStatus: 'DRAFT' | 'PENDING') {
     if (!item) return;
+    const locked = item.status === 'LIVE' || item.status === 'COMPLETE';
+    if (locked) return; // safety: do nothing if approved
+
     try {
       setSaving(true);
       setErr(null);
@@ -68,17 +102,24 @@ export default function SAUEditAnnouncementPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // send PascalCase keys to API
           Topic: topic,
           Description: description || null,
-          PhotoURL: photourl || null,
-          Status: newStatus,               // ✅ matches DB constraint
-          SAU_ID: item.sau_id,
-          AUSO_ID: item.auso_id,
+          PhotoURL: photoUrl || null,
+          Status: newStatus,
+          SAU_ID: item.sauId,
+          AUSO_ID: item.ausoId,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Update failed');
-      setItem(json);
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || 'Update failed');
+      const json = text ? (JSON.parse(text) as ApiRow) : null;
+      if (!json) throw new Error('Invalid response');
+      const updated = fromApi(json);
+      setItem(updated);
+      setTopic(updated.topic ?? '');
+      setDescription(updated.description ?? '');
+      setPhotoUrl(updated.photoUrl ?? '');
       alert(newStatus === 'PENDING' ? 'Submitted for review.' : 'Saved as draft.');
     } catch (e: any) {
       setErr(e?.message || 'Update error');
@@ -87,9 +128,12 @@ export default function SAUEditAnnouncementPage() {
     }
   }
 
+  if (!Number.isFinite(idNum)) return <div className="p-6 text-red-600">Invalid announcement id.</div>;
   if (loading) return <div className="p-6">Loading…</div>;
   if (err) return <div className="p-6 text-red-600">{err}</div>;
   if (!item) return <div className="p-6">Announcement not found.</div>;
+
+  const locked = item.status === 'LIVE' || item.status === 'COMPLETE';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-4">
@@ -103,12 +147,19 @@ export default function SAUEditAnnouncementPage() {
         </Link>
       </div>
 
+      {/* Optional banner when locked */}
+      {locked && (
+        <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
+          This announcement is approved and read-only.
+        </div>
+      )}
+
       <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
         <div className="py-2 text-sm font-medium text-zinc-700">Activity Unit</div>
         <div className="py-2">Student Council of Theodore Maria School of Arts</div>
 
         <div className="py-2 text-sm font-medium text-zinc-700">Announcement Number</div>
-        <div className="py-2 font-mono">A{String(item.announcementid).padStart(6, '0')}</div>
+        <div className="py-2 font-mono">A{String(item.announcementId).padStart(6, '0')}</div>
       </div>
 
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
@@ -116,7 +167,8 @@ export default function SAUEditAnnouncementPage() {
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+            readOnly={locked}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${locked ? 'bg-zinc-50' : ''}`}
           />
         </RowBox>
 
@@ -125,15 +177,17 @@ export default function SAUEditAnnouncementPage() {
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+            readOnly={locked}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${locked ? 'bg-zinc-50' : ''}`}
           />
         </RowBox>
 
         <RowBox label="Overview Photo URL">
           <input
-            value={photourl}
-            onChange={(e) => setPhotourl(e.target.value)}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+            value={photoUrl}
+            onChange={(e) => setPhotoUrl(e.target.value)}
+            readOnly={locked}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${locked ? 'bg-zinc-50' : ''}`}
             placeholder="https://…"
           />
         </RowBox>
@@ -142,28 +196,33 @@ export default function SAUEditAnnouncementPage() {
           <input
             readOnly
             value={item.status}
-            className="w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm bg-zinc-50"
+            className="w-full max-w-xs rounded-md border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm"
           />
         </RowBox>
 
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => save('PENDING')}
-            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-900 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Submit for review (PENDING)'}
-          </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => save('DRAFT')}
-            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Save draft (DRAFT)'}
-          </button>
-        </div>
+        {/* Actions */}
+        {!locked ? (
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => save('PENDING')}
+              className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-900 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Submit for review (PENDING)'}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => save('DRAFT')}
+              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {saving ? 'Saving…' : 'Save draft (DRAFT)'}
+            </button>
+          </div>
+        ) : (
+          <div className="pt-2 text-sm text-zinc-600">No further edits from SAU after approval.</div>
+        )}
       </form>
     </div>
   );

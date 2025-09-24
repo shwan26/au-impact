@@ -1,4 +1,3 @@
-// app/public/merchandise/[id]/MerchClient.tsx
 'use client';
 
 import Image from 'next/image';
@@ -111,7 +110,7 @@ export function PurchaseForm({ merch }: { merch: Merch }) {
           </button>
           <span className="px-2">{qty}</span>
           <button
-            onClick={() => setQty((q) => q + 1)}
+            onClick={() => setQty((q) => q + 1))}
             className="px-2"
             type="button"
           >

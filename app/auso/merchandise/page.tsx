@@ -1,38 +1,24 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useMemo } from 'react';
-import { useJson } from '@/hooks/useJson';
-import { merches as merchandiseMock } from '@/lib/mock';
-import type { Merch, Status } from '@/types/db';
+import Link from "next/link";
+import { useJson } from "@/hooks/useJson";
 
-type ApiShape = { items: Merch[] };
-
-function toStatusLabel(s?: Status) {
-  return s === 'PENDING' ? 'Pending' : 'Approved';
-}
+type Row = {
+  ItemID: number;
+  Title: string;
+  Status?: string | null;
+};
+type ApiShape = { items: Row[] };
 
 export default function AUSOMerchandisePage() {
-  const { data, loading, error } = useJson<ApiShape>('/api/merchandise');
-
-  const source = data?.items ?? merchandiseMock;
-  const rows = useMemo(
-    () =>
-      source.map((m) => ({
-        pn: m.itemId,
-        name: m.title,
-        status: toStatusLabel((m as any).status),
-      })),
-    [source]
-  );
-
-  if (loading && !data) return <div>Loading…</div>;
+  const { data, loading, error } = useJson<ApiShape>("/api/merchandise");
+  const items = data?.items ?? [];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       {error && (
         <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
-          Couldn’t reach <code>/api/merchandise</code>. Showing mock data instead.
+          Couldn’t reach <code>/api/merchandise</code>.
         </div>
       )}
 
@@ -54,21 +40,28 @@ export default function AUSOMerchandisePage() {
             </tr>
           </thead>
           <tbody className="text-zinc-900">
-            {rows.map((r) => (
-              <tr key={r.pn} className="border-b border-zinc-300 last:border-b-0">
-                <td className="px-4 py-3 border-r border-zinc-300">{r.pn}</td>
-                <td className="px-4 py-3 border-r border-zinc-300">
-                  <Link
-                    href={`/auso/merchandise/${r.pn}`}
-                    className="underline underline-offset-2 hover:no-underline"
-                  >
-                    {r.name}
-                  </Link>
+            {loading && !data ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
+                  Loading…
                 </td>
-                <td className="px-4 py-3">{r.status}</td>
               </tr>
-            ))}
-            {!rows.length && (
+            ) : items.length ? (
+              items.map((m) => (
+                <tr key={m.ItemID} className="border-b border-zinc-300 last:border-b-0">
+                  <td className="px-4 py-3 border-r border-zinc-300">{m.ItemID}</td>
+                  <td className="px-4 py-3 border-r border-zinc-300">
+                    <Link
+                      href={`/auso/merchandise/${m.ItemID}`}
+                      className="underline underline-offset-2 hover:no-underline"
+                    >
+                      {m.Title}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">{m.Status ?? "PENDING"}</td>
+                </tr>
+              ))
+            ) : (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
                   No merchandise found.

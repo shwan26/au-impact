@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { merches } from '@/lib/mock';
-import type { Merch } from '@/types/db';
+import Link from "next/link";
+import { useJson } from "@/hooks/useJson";
+
+type Row = {
+  ItemID: number;
+  Title: string;
+  Status?: string | null;
+};
+
+type ApiShape = { items: Row[] };
 
 export default function SAUMerchandisePage() {
-  const items: Merch[] = merches;
-
-  const statusLabel = (m: Merch) =>
-    (m as any).status === 'PENDING' ? 'Pending' : 'Approved';
+  const { data, loading, error } = useJson<ApiShape>("/api/merchandise");
+  const items = data?.items ?? [];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-      {/* Header + New */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Merchandise</h1>
         <Link
@@ -23,7 +27,12 @@ export default function SAUMerchandisePage() {
         </Link>
       </div>
 
-      {/* Table */}
+      {error && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          Couldn’t reach <code>/api/merchandise</code>.
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-zinc-300 bg-white">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-zinc-50 text-zinc-800">
@@ -38,26 +47,30 @@ export default function SAUMerchandisePage() {
             </tr>
           </thead>
           <tbody className="text-zinc-900">
-            {items.map((m) => (
-              <tr key={m.itemId} className="border-b border-zinc-300 last:border-b-0">
-                <td className="px-4 py-3 border-r border-zinc-300 font-mono">
-                  {m.itemId}
+            {loading && !data ? (
+              <tr>
+                <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
+                  Loading…
                 </td>
-
-                {/* 👇 name links to detail page */}
-                <td className="px-4 py-3 border-r border-zinc-300">
-                  <Link
-                    href={`/sau/merchandise/${m.itemId}`}
-                    className="underline hover:no-underline"
-                  >
-                    {m.title}
-                  </Link>
-                </td>
-
-                <td className="px-4 py-3">{statusLabel(m)}</td>
               </tr>
-            ))}
-            {!items.length && (
+            ) : items.length ? (
+              items.map((m) => (
+                <tr key={m.ItemID} className="border-b border-zinc-300 last:border-b-0">
+                  <td className="px-4 py-3 border-r border-zinc-300 font-mono">
+                    {m.ItemID}
+                  </td>
+                  <td className="px-4 py-3 border-r border-zinc-300">
+                    <Link
+                      href={`/sau/merchandise/${m.ItemID}`}
+                      className="underline hover:no-underline"
+                    >
+                      {m.Title}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">{m.Status ?? "PENDING"}</td>
+                </tr>
+              ))
+            ) : (
               <tr>
                 <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
                   No merchandise found.

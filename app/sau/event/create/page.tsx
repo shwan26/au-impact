@@ -1,3 +1,4 @@
+// app/sau/event/create/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -8,46 +9,124 @@ function genProjectNumber() {
   return `E${rnd}`;
 }
 
+function toISOOrNull(v: FormDataEntryValue | null) {
+  const s = (v ?? '').toString().trim();
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+function toNumber(v: FormDataEntryValue | null) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function SAUCreateEventPage() {
   const router = useRouter();
 
-  // Generate after mount to avoid hydration mismatch
+  // Avoid hydration mismatch by generating after mount
   const [projectNumber, setProjectNumber] = useState<string>('');
-  useEffect(() => {
-    setProjectNumber(genProjectNumber());
-  }, []);
+  useEffect(() => setProjectNumber(genProjectNumber()), []);
 
   const [recruitStaff, setRecruitStaff] = useState<'yes' | 'no'>('yes');
   const [paidOrFree, setPaidOrFree] = useState<'paid' | 'free'>('free');
   const [files, setFiles] = useState<FileList | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const staffDisabled = recruitStaff === 'no';
-  const feeDisabled = paidOrFree === 'free';
-
-  // ✅ No network calls — always “complete”
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
+    setErr(null);
 
-    // Optional: quick confirmation
-    alert('Submitted ✔');
+    try {
+      const fd = new FormData(e.currentTarget);
 
-    // Redirect back to the SAU events list with a success flag
-    router.push('/sau/event?submitted=1');
+      // Dates
+      const startISO = toISOOrNull(fd.get('startDate'));
+      const endISO   = toISOOrNull(fd.get('endDate'));
+      if (startISO && endISO && new Date(endISO) < new Date(startISO)) {
+        throw new Error('End date/time must be after start date/time.');
+      }
+
+      // Paid/Free + fee
+      const feeInput = toNumber(fd.get('registrationFee')) ?? 0;
+      const fee = paidOrFree === 'free' ? 0 : Math.max(0, feeInput);
+
+      // Staff toggles: if "no", wipe staff numbers/deadlines/hours
+      const maxStaff         = (recruitStaff === 'no') ? 0 : (toNumber(fd.get('maxStaff')) ?? 0);
+      const staffDeadlineISO = (recruitStaff === 'no') ? null : toISOOrNull(fd.get('staffDeadline'));
+      const scholarHours     = (recruitStaff === 'no') ? 0 : (toNumber(fd.get('scholarHours')) ?? 0);
+
+      // Participants
+      const maxParticipants        = toNumber(fd.get('maxParticipants')) ?? 0;
+      const participantDeadlineISO = toISOOrNull(fd.get('participantDeadline'));
+
+      // (Optional) poster upload placeholder — not wired yet
+      let photoUrl: string | null = null;
+      if (files?.[0]) {
+        // TODO: implement /api/upload and set photoUrl to the returned public URL
+        photoUrl = null;
+      }
+
+      // Build payload your /api/events expects (PascalCase keys)
+      const payload: Record<string, any> = {
+        Title: String(fd.get('projectName') || 'Untitled').trim(),
+        Description: String(fd.get('projectDescription') || '').trim(),
+        PhotoURL: photoUrl, // null until upload is wired
+        Location: String(fd.get('eventVenue') || '').trim(),
+        StartDate: startISO,
+        EndDate: endISO,
+        Status: 'PENDING',
+
+        // NEW: persist these (make sure API maps them)
+        Fee: fee,
+        MaxParticipant: maxParticipants,
+        ParticipantDeadline: participantDeadlineISO,
+        MaxStaff: maxStaff,
+        MaxStaffDeadline: staffDeadlineISO,
+        ScholarshipHours: scholarHours,
+
+        // Optional: if you add this column later
+        // ProjectCode: projectNumber || null,
+
+        SAU_ID: null,
+        AUSO_ID: null,
+      };
+
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as any)?.error || 'Failed to create event');
+
+      router.push('/sau/event?submitted=1');
+    } catch (e: any) {
+      setErr(e?.message || 'Something went wrong');
+      setSubmitting(false);
+    }
   }
+
+  const staffDisabled = recruitStaff === 'no';
+  const feeDisabled   = paidOrFree === 'free';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
       <h1 className="text-2xl font-extrabold">Create Event</h1>
 
-      <form onSubmit={onSubmit} className="mt-4 space-y-4">
-        {/* Activity Unit */}
+      {err && (
+        <div className="mt-3 rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+          {err}
+        </div>
+      )}
+
+      <form onSubmit={onSubmit} className="mt-4 space-y-4" noValidate>
         <Row label="Activity Unit">
           <div className="py-2">Student Council of Theodore Maria School of Arts</div>
         </Row>
 
-        {/* Project Number (client generated; read-only) */}
         <Row label="Project Number">
           <div className="py-2 font-mono">{projectNumber || '—'}</div>
           <input type="hidden" name="projectNumber" value={projectNumber} />
@@ -58,7 +137,6 @@ export default function SAUCreateEventPage() {
         <Field label="Organizer LineID" name="organizerLineId" />
         <Field label="Event Venue" name="eventVenue" />
 
-        {/* Event Date & Time */}
         <Row label="Event Date & Time">
           <div className="grid grid-cols-2 gap-3">
             <input
@@ -77,7 +155,6 @@ export default function SAUCreateEventPage() {
         <Field label="Maximum Participant No." name="maxParticipants" type="number" min={0} />
         <Field label="Deadline for Participant" name="participantDeadline" type="date" />
 
-        {/* Recruiting staff */}
         <Row label="Recruiting staff">
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
@@ -101,7 +178,6 @@ export default function SAUCreateEventPage() {
           </div>
         </Row>
 
-        {/* Staff fields (disabled/greyed when "No") */}
         <Row label="Maximum Staff No.">
           <input
             name="maxStaff"
@@ -113,6 +189,7 @@ export default function SAUCreateEventPage() {
             }`}
           />
         </Row>
+
         <Row label="Deadline for Staff">
           <input
             name="staffDeadline"
@@ -123,6 +200,7 @@ export default function SAUCreateEventPage() {
             }`}
           />
         </Row>
+
         <Row label="Scholar Hours for Staff">
           <input
             name="scholarHours"
@@ -135,7 +213,6 @@ export default function SAUCreateEventPage() {
           />
         </Row>
 
-        {/* Paid or Free */}
         <Row label="Paid or free">
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
@@ -159,7 +236,6 @@ export default function SAUCreateEventPage() {
           </div>
         </Row>
 
-        {/* Registration fees (disabled when Free) */}
         <Row label="Registration fees">
           <input
             name="registrationFee"
@@ -172,16 +248,14 @@ export default function SAUCreateEventPage() {
           />
         </Row>
 
-        {/* Upload Poster */}
         <Row label="Upload Poster">
           <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
-            <span>{files?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (up to 5 photos)'}</span>
+            <span>{files?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (optional)'}</span>
             <input
               type="file"
               name="poster"
               accept="image/png,image/jpeg"
-              multiple
               onChange={(e) => setFiles(e.currentTarget.files)}
               className="hidden"
             />
@@ -200,6 +274,7 @@ export default function SAUCreateEventPage() {
           <button
             type="submit"
             disabled={!projectNumber || submitting}
+            aria-busy={submitting}
             className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-50"
           >
             {submitting ? 'Submitting…' : 'Submit'}
@@ -212,13 +287,7 @@ export default function SAUCreateEventPage() {
 
 /* ---------- small helpers ---------- */
 
-function Row({
-  label,
-  children,
-}: {
-  label?: string;
-  children: React.ReactNode;
-}) {
+function Row({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
       <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>

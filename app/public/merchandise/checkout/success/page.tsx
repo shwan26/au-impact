@@ -1,18 +1,40 @@
-// app/public/merchandise/checkout/success/page.tsx
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useEffect, useRef } from 'react';
-import { useCart } from '@/hooks/useCart';
-import { useCheckout } from '@/hooks/useCheckout';
-import type { CartItem } from '@/types/db';
+import Link from "next/link";
+import { useEffect, useRef } from "react";
+import { useCart } from "@/hooks/useCart";
+import { useCheckout } from "@/hooks/useCheckout";
 
-const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
+/** Local minimal shape */
+type LineItem = {
+  itemId: string;
+  title: string;
+  image: string;
+  size?: string;
+  color?: string;
+  qty?: number;
+  price?: number;
+};
+
+const isLineItem = (x: any): x is LineItem =>
+  x && typeof x.itemId === "string" && typeof x.title === "string" && typeof x.image === "string";
+
+const keyOf = (i: LineItem) => `${i.itemId}-${i.size ?? ""}-${i.color ?? ""}`;
 
 export default function CheckoutSuccessPage() {
-  const cartItems = useCart((s) => s.items as CartItem[]);
-  const removeFromCart = useCart((s) => s.remove);
-  const clearSelection = useCheckout((s) => s.clear);
+  // Read whole stores (no selectors)
+  const cartStore: any = useCart();
+  const checkoutStore: any = useCheckout();
+
+  const cartItems: LineItem[] = Array.isArray(cartStore?.items)
+    ? cartStore.items.filter(isLineItem)
+    : [];
+
+  const removeFromCart: ((i: any) => void) | undefined =
+    typeof cartStore?.remove === "function" ? cartStore.remove : undefined;
+
+  const clearSelection: (() => void) | undefined =
+    typeof checkoutStore?.clear === "function" ? checkoutStore.clear : undefined;
 
   const ranRef = useRef(false);
 
@@ -23,20 +45,20 @@ export default function CheckoutSuccessPage() {
     clearSelection?.();
 
     try {
-      const raw = sessionStorage.getItem('pp:lastPurchased');
+      const raw = sessionStorage.getItem("pp:lastPurchased");
       const purchasedKeys: unknown = raw ? JSON.parse(raw) : [];
 
       if (Array.isArray(purchasedKeys) && purchasedKeys.length > 0) {
         for (const item of cartItems) {
           if (purchasedKeys.includes(keyOf(item))) {
-            removeFromCart(item);
+            removeFromCart?.(item); // if your store expects id: use removeFromCart?.(item.itemId)
           }
         }
       }
 
-      sessionStorage.removeItem('pp:lastPurchased');
+      sessionStorage.removeItem("pp:lastPurchased");
     } catch {
-      // ignore JSON/storage issues
+      /* ignore */
     }
   }, [cartItems, clearSelection, removeFromCart]);
 

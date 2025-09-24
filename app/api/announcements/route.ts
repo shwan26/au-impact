@@ -1,8 +1,16 @@
 // app/api/announcements/route.ts
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseClient';
 
-// DB -> API (PascalCase) mapper
+const TABLE = 'announcement';
+const FIELDS =
+  'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
+
+const ALLOWED_STATUS = new Set(['DRAFT', 'PENDING', 'LIVE', 'COMPLETE']);
+
+// DB -> API (PascalCase)
 function mapRow(r: any) {
   return {
     AnnouncementID: r.announcementid,
@@ -16,13 +24,11 @@ function mapRow(r: any) {
   };
 }
 
-const ALLOWED_STATUS = new Set(['PENDING', 'LIVE', 'COMPLETE', 'DRAFT']);
-
 export async function GET(req: Request) {
   try {
     const supabase = getSupabaseServer();
-
     const { searchParams } = new URL(req.url);
+
     const status = searchParams.get('status') || undefined;
     const page = Math.max(1, Number(searchParams.get('page') || '1'));
     const pageSize = Math.max(1, Number(searchParams.get('pageSize') || '9'));
@@ -30,29 +36,26 @@ export async function GET(req: Request) {
     const to = from + pageSize - 1;
 
     let q = supabase
-      .from('announcement') // lowercase table
-      .select(
-        'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id',
-        { count: 'exact' }
-      )
-      .order('dateposted', { ascending: false })
-      .range(from, to);
+      .from(TABLE)
+      .select(FIELDS, { count: 'exact' })
+      // ✅ newest first so fresh SAU submissions appear immediately
+      .order('announcementid', { ascending: false });
 
-    if (status) q = q.eq('status', status);
-
-    const { data, error, count } = await q;
-    if (error) {
-      console.error('GET /api/announcements error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (status) {
+      if (!ALLOWED_STATUS.has(status)) {
+        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+      }
+      q = q.eq('status', status);
     }
 
-    return NextResponse.json({
-      items: (data ?? []).map(mapRow),
-      total: count ?? 0,
-    });
+    const { data, error, count } = await q.range(from, to);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const items = (data ?? []).map(mapRow);
+
+    return NextResponse.json({ page, pageSize, total: count ?? 0, items });
   } catch (e: any) {
-    console.error('ENV/Client error:', e?.message);
-    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
   }
 }
 
@@ -61,35 +64,32 @@ export async function POST(req: Request) {
     const supabase = getSupabaseServer();
     const body = await req.json();
 
-    const raw = String(body.Status ?? 'PENDING').toUpperCase();
-    const status = ALLOWED_STATUS.has(raw) ? raw : 'PENDING';
-
-    const payload = {
-      topic: body.Topic,
-      description: body.Description ?? null,
-      photourl: body.PhotoURL ?? null,
-      status,
-      sau_id: body.SAU_ID ?? null,
-      auso_id: body.AUSO_ID ?? null,
-      // dateposted: default by DB
+    const payload: Record<string, any> = {
+      topic: (body?.Topic ?? '').trim(),
+      description: body?.Description ?? null,
+      photourl: body?.PhotoURL ?? null,
+      status: body?.Status ?? 'DRAFT',
+      sau_id: body?.SAU_ID ?? null,
+      auso_id: body?.AUSO_ID ?? null,
     };
 
-    const { data, error } = await supabase
-      .from('announcement')
-      .insert([payload])
-      .select(
-        'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id'
-      )
-      .single();
-
-    if (error) {
-      console.error('POST /api/announcements error:', error);
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!payload.topic) {
+      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
+    }
+    if (!ALLOWED_STATUS.has(payload.status)) {
+      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
     }
 
-    return NextResponse.json(mapRow(data));
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert(payload)
+      .select(FIELDS)
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    return NextResponse.json(mapRow(data), { status: 201 });
   } catch (e: any) {
-    console.error('ENV/Client error:', e?.message);
-    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
   }
 }

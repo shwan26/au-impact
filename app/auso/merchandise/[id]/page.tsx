@@ -110,27 +110,6 @@ export default function MerchEditPage({ params }: { params: { id: string } }) {
         <Field label="Quality" />
         <Field label="Percentage" />
 
-       {/* Status (Approve / Not approve) */}
-<Row label="Status">
-  <div className="flex items-center gap-3">
-    <button
-      type="button"
-      onClick={approve}
-      className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/30"
-    >
-      Approve
-    </button>
-    <button
-      type="button"
-      onClick={reject}
-      className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
-    >
-      Not approve
-    </button>
-  </div>
-</Row>
-
-
         {/* Bottom: Save only */}
         <div className="mt-4 flex items-center gap-3">
           <button
@@ -140,6 +119,21 @@ export default function MerchEditPage({ params }: { params: { id: string } }) {
           >
             Save
           </button>
+
+          <button
+            type="button"
+            onClick={approve}
+            className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-black/30"
+          >
+            Approve
+          </button>
+          <button
+            type="button"
+            onClick={reject}
+            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
+          >
+            Not approve
+          </button>
         </div>
       </div>
     </main>
@@ -147,7 +141,6 @@ export default function MerchEditPage({ params }: { params: { id: string } }) {
 }
 
 /* — helpers — */
-
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
@@ -156,7 +149,6 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     </div>
   );
 }
-
 function Field({ label, defaultValue }: { label: string; defaultValue?: string }) {
   return (
     <Row label={label}>
@@ -167,7 +159,6 @@ function Field({ label, defaultValue }: { label: string; defaultValue?: string }
     </Row>
   );
 }
-
 function Thumb({ src, alt }: { src?: string; alt: string }) {
   const w = 110;
   const h = 110;

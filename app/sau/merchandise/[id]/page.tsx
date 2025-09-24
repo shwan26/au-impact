@@ -1,4 +1,3 @@
-// app/sau/merchandise/[id]/page.tsx  (duplicate to app/auso/... as well)
 'use client';
 
 import Image from 'next/image';

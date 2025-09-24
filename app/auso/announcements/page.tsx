@@ -3,59 +3,74 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
-type ApiItem = {
-  announcementid?: number | null;
-  topic?: string | null;
-  description?: string | null;
-  photourl?: string | null;
-  dateposted?: string | null; // ISO
-  status?: 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string | null;
-  sau_id?: number | null;
-  auso_id?: number | null;
+type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+
+type ApiRow = {
+  AnnouncementID: number;
+  Topic: string | null;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string | null;
+  Status: Status | null;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
 };
+
+type UiRow = {
+  announcementid: number;
+  topic: string | null;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string | null;
+  status: Status | null;
+  sau_id: number | null;
+  auso_id: number | null;
+};
+
+function fromApi(r: ApiRow): UiRow {
+  return {
+    announcementid: r.AnnouncementID,
+    topic: r.Topic,
+    description: r.Description,
+    photourl: r.PhotoURL,
+    dateposted: r.DatePosted,
+    status: r.Status,
+    sau_id: r.SAU_ID,
+    auso_id: r.AUSO_ID,
+  };
+}
 
 function toAnnouncementNumber(n: number) {
   return `A${String(n).padStart(6, '0')}`;
 }
-function toStatusLabel(s?: ApiItem['status']) {
-  return s === 'PENDING' ? 'Pending' : 'Approved'; // LIVE/COMPLETE => Approved
+function toStatusLabel(s?: Status | null) {
+  return s === 'PENDING' ? 'Pending' : 'Approved';
 }
 
 export default function AUSOAnnouncementsPage() {
-  const [items, setItems] = useState<ApiItem[]>([]);
+  const [items, setItems] = useState<UiRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
         setLoading(true);
         setErr(null);
-
-        // Pull a reasonable page size for the AUSO table
-        const res = await fetch('/api/announcements?page=1&pageSize=100', {
-          cache: 'no-store',
-        });
-        const json = await res.json();
-
-        if (!res.ok) throw new Error(json?.error || 'Failed to load announcements');
-
-        if (!cancelled) {
-          const arr = Array.isArray(json.items) ? (json.items as ApiItem[]) : [];
-          setItems(arr);
-        }
+        const res = await fetch('/api/announcements?page=1&pageSize=100', { cache: 'no-store' });
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || 'Failed to load announcements');
+        const json = text ? JSON.parse(text) : { items: [] };
+        const arr = Array.isArray(json.items) ? (json.items as ApiRow[]) : [];
+        if (!cancelled) setItems(arr.map(fromApi));
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Failed to load announcements');
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const rows = useMemo(() => items ?? [], [items]);
@@ -67,40 +82,30 @@ export default function AUSOAnnouncementsPage() {
       </div>
 
       {loading && <p className="text-sm text-zinc-600">Loading…</p>}
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {err && <p className="text-sm text-red-600">{String(err)}</p>}
 
       {!loading && !err && (
         <div className="overflow-hidden rounded-2xl border border-zinc-300 bg-white">
           <table className="w-full border-collapse text-sm">
             <thead className="bg-zinc-50 text-zinc-800">
               <tr className="border-b border-zinc-300">
-                <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
-                  Announcement Number
-                </th>
-                <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
-                  Announcement Topic
-                </th>
+                <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Announcement Number</th>
+                <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Announcement Topic</th>
                 <th className="px-4 py-3 text-left font-semibold">Status</th>
               </tr>
             </thead>
-
             <tbody className="text-zinc-900">
               {rows.map((a, i) => {
-                // ✅ Stable key: prefer DB id; fall back to a composite; finally the index.
                 const key =
-                  (a.announcementid ?? undefined) ??
+                  a.announcementid ??
                   (a.topic && a.dateposted ? `${a.topic}-${a.dateposted}` : undefined) ??
                   `row-${i}`;
-
-                // Safe display id for links & numbering
                 const displayId = a.announcementid ?? i + 1;
-
                 return (
                   <tr key={key} className="border-b border-zinc-300 last:border-b-0">
                     <td className="px-4 py-3 border-r border-zinc-300">
                       {toAnnouncementNumber(displayId)}
                     </td>
-
                     <td className="px-4 py-3 border-r border-zinc-300">
                       <Link
                         href={`/auso/announcements/${displayId}`}
@@ -109,12 +114,10 @@ export default function AUSOAnnouncementsPage() {
                         {a.topic ?? '(no topic)'}
                       </Link>
                     </td>
-
                     <td className="px-4 py-3">{toStatusLabel(a.status)}</td>
                   </tr>
                 );
               })}
-
               {!rows.length && (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
