@@ -1,4 +1,3 @@
-// app/public/merchandise/page.tsx
 'use client';
 
 import dynamic from 'next/dynamic';
@@ -7,8 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 import Pager from '@/components/ui/Pager';
-import { merches } from '@/lib/mock';
 import { useCart } from '@/hooks/useCart';
+import { useJson } from '@/hooks/useJson';
+import type { Merch } from '@/types/db';
 
 const MerchandiseList = dynamic(
   () => import('@/components/lists/MerchandiseList'),
@@ -30,20 +30,28 @@ export default function Page() {
     [items]
   );
 
+  // ✅ fetch from API instead of mock
+  const { data, loading, error } = useJson<{ items: Merch[] }>('/api/merchandise');
+  const allMerches = data?.items ?? [];
+
   // filter (optional)
   const filtered = useMemo(() => {
-    if (!q) return merches;
-    return merches.filter(
+    if (!q) return allMerches;
+    return allMerches.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q)
     );
-  }, [q]);
+  }, [q, allMerches]);
 
   const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1);
   const clamped = Math.min(page, totalPages);
   const start = (clamped - 1) * PAGE_SIZE;
   const itemsPage = filtered.slice(start, start + PAGE_SIZE);
+
+  if (loading && !data) {
+    return <div className="p-4">Loading merchandise…</div>;
+  }
 
   return (
     <main className="mx-auto max-w-[1200px] px-3 py-4">
@@ -67,6 +75,12 @@ export default function Page() {
           🛒 ({cartCount})
         </Link>
       </div>
+
+      {error && (
+        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
+          Couldn’t load merchandise. Please try again later.
+        </div>
+      )}
 
       <MerchandiseList items={itemsPage} />
 

@@ -1,38 +1,174 @@
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
-import { getFundraisingById } from '@/lib/mock';
-import type { Fundraising } from '@/types/db';
-import { useMemo } from 'react';
+import { uploadTo } from '@/lib/uploadClient';
 
-function toProjectNumber(id: string) {
-  const digits = id.replace(/\D/g, '').padStart(6, '0') || '000000';
+type ApiItem = {
+  id: string | number;
+  title: string;
+  description?: string | null;
+  status?: 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+  organizerName?: string | null;
+  contactLine?: string | null;
+  location?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  goal?: number | null;
+  imageUrl?: string | null;
+  qrUrl?: string | null;
+  bankBookName?: string | null;
+  bankBookAccount?: string | null;
+  bankName?: string | null;
+  currentDonation?: number | null;
+};
+
+function toProjectNumber(id: string | number | null | undefined) {
+  const digits = String(id ?? '').replace(/\D/g, '').padStart(6, '0') || '000000';
   return `F${digits}`;
 }
 
 export default function SAUEditFundraisingPage() {
-  const params = useParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const router = useRouter();
+  const params = useParams<{ id: string }>();
 
-  const item = getFundraisingById(id);
-  if (!item) return <div className="p-6">Fundraising not found.</div>;
+  const idStr = Array.isArray(params?.id) ? params.id[0] : params?.id ?? '';
+  const idNum = Number(idStr);
+  const hasValidNumericId = Number.isFinite(idNum) && idStr !== '';
 
-  const projectNumber = useMemo(() => toProjectNumber(id), [id]);
+  const [item, setItem] = useState<ApiItem | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    // No backend update per your request—just pretend success
-    alert('Fundraising saved (demo).');
-  };
+  // local upload state
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [qrFile, setQrFile] = useState<File | null>(null);
 
-  const onClose = () => {
-    if (confirm('Close this fundraising? (demo)')) {
-      alert('Fundraising closed (demo).');
-      router.push('/sau/fundraising');
+  const projectNumber = useMemo(() => toProjectNumber(idStr), [idStr]);
+
+  useEffect(() => {
+    if (!hasValidNumericId) {
+      setItem(null);
+      setErr('Invalid id');
+      setLoading(false);
+      return;
     }
-  };
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const res = await fetch(`/api/fundraising/${idNum}`, { cache: 'no-store' });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(json?.error || 'Failed to load');
+        if (!cancelled) setItem(json as ApiItem);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || 'Error loading fundraising');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hasValidNumericId, idNum]);
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!hasValidNumericId || !item) return;
+
+    const fd = new FormData(e.currentTarget);
+
+    try {
+      setSaving(true);
+      setErr(null);
+
+      // 1) Uploads (only if user picked new files)
+      let imageUrl: string | undefined;
+      let qrUrl: string | undefined;
+
+      if (posterFile) {
+        const up = await uploadTo('poster', posterFile, `fundraising/${idNum}`);
+        imageUrl = up.publicUrl;
+      }
+      if (qrFile) {
+        const up = await uploadTo('qr', qrFile, `fundraising/${idNum}`);
+        qrUrl = up.publicUrl;
+      }
+
+      // 2) Build payload (fall back to current values when empty)
+      const payload: Partial<ApiItem> = {
+        title: String(fd.get('title') ?? item.title),
+        organizerName: String(fd.get('organizerName') ?? item.organizerName ?? ''),
+        contactLine: String(fd.get('contactLine') ?? item.contactLine ?? ''),
+        location: String(fd.get('location') ?? item.location ?? ''),
+        startDate: (fd.get('startDate') ? String(fd.get('startDate')) : '') || null,
+        endDate: (fd.get('endDate') ? String(fd.get('endDate')) : '') || null,
+        goal: fd.get('goal') ? Number(fd.get('goal')) : (item.goal ?? null),
+        description: String(fd.get('description') ?? item.description ?? ''),
+        status: item.status ?? 'PENDING',
+
+        bankBookName: String(fd.get('bankBookName') ?? item.bankBookName ?? ''),
+        bankBookAccount: String(fd.get('bankBookAccount') ?? item.bankBookAccount ?? ''),
+        bankName: String(fd.get('bankName') ?? item.bankName ?? ''),
+      };
+
+      if (imageUrl !== undefined) payload.imageUrl = imageUrl;
+      if (qrUrl !== undefined) payload.qrUrl = qrUrl;
+
+      // 3) Save
+      const res = await fetch(`/api/fundraising/${idNum}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || 'Failed to save');
+      setItem(json as ApiItem);
+      alert('Fundraising saved.');
+      router.refresh();
+    } catch (e: any) {
+      setErr(e?.message || 'Error while saving');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onClose() {
+    if (!hasValidNumericId) return;
+    if (!confirm('Close this fundraising?')) return;
+    try {
+      setSaving(true);
+      setErr(null);
+      const res = await fetch(`/api/fundraising/${idNum}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'COMPLETE' }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || 'Failed to close');
+      setItem(json as ApiItem);
+      alert('Fundraising closed.');
+      router.push('/sau/fundraising');
+    } catch (e: any) {
+      setErr(e?.message || 'Error while closing');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!hasValidNumericId) {
+    return (
+      <div className="p-6 space-y-3">
+        <p className="text-red-600 font-medium">Error: Invalid id</p>
+        <Link href="/sau/fundraising" className="underline">Back to Fundraising list</Link>
+      </div>
+    );
+  }
+
+  if (loading) return <div className="p-6">Loading…</div>;
+  if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
+  if (!item) return <div className="p-6">Fundraising not found.</div>;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-4">
@@ -40,18 +176,8 @@ export default function SAUEditFundraisingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Fundraising</h1>
         <div className="flex gap-2">
-          <Link
-            href={`/sau/fundraising/${id}/list`}
-            className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50"
-          >
-            Fundraising List
-          </Link>
-          <button
-            onClick={onClose}
-            className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-semibold hover:bg-zinc-300"
-          >
-            Close Fundraising
-          </button>
+          <Link href={`/sau/fundraising/${idStr}/list`} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50">Fundraising List</Link>
+          <button onClick={onClose} disabled={saving} className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-semibold hover:bg-zinc-300 disabled:opacity-60">Close Fundraising</button>
         </div>
       </div>
 
@@ -64,98 +190,81 @@ export default function SAUEditFundraisingPage() {
         <div className="py-2 font-mono">{projectNumber}</div>
       </div>
 
-      {/* Edit form (prefilled) */}
+      {/* Edit form */}
       <form onSubmit={onSubmit} className="space-y-4">
         <Row label="Project Name">
-          <input
-            defaultValue={item.title}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-          />
+          <input name="title" defaultValue={item.title} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
         </Row>
 
         <Row label="Organizer Name">
-          <input
-            defaultValue={item.organizerName ?? ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-          />
+          <input name="organizerName" defaultValue={item.organizerName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Organizer LineID">
-          <input
-            defaultValue={item.contactLine ?? ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-          />
+          <input name="contactLine" defaultValue={item.contactLine ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Event Venue">
-          <input
-            defaultValue={item.location ?? ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-          />
+          <input name="location" defaultValue={item.location ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Event Date From / To">
           <div className="grid grid-cols-2 gap-3">
-            <input
-              type="date"
-              defaultValue={item.startDate?.slice(0, 10)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-            />
-            <input
-              type="date"
-              defaultValue={item.endDate?.slice(0, 10)}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-            />
+            <input type="date" name="startDate" defaultValue={item.startDate?.slice(0, 10) || ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
+            <input type="date" name="endDate" defaultValue={item.endDate?.slice(0, 10) || ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
           </div>
         </Row>
 
         <Row label="Expected Money Amount (THB)">
-          <input
-            type="number"
-            min={0}
-            defaultValue={item.goal}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-          />
+          <input type="number" name="goal" min={0} defaultValue={item.goal ?? 0} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Write Caption">
-          <textarea
-            rows={4}
-            defaultValue={item.description ?? ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none"
-          />
+          <textarea name="description" rows={4} defaultValue={item.description ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
+        {/* Bank fields */}
         <Row label="Bank Book Name">
-          <input className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
+          <input name="bankBookName" defaultValue={item.bankBookName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
         <Row label="Bank Book Account">
-          <input className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
+          <input name="bankBookAccount" defaultValue={item.bankBookAccount ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
         <Row label="Bank Name">
-          <input className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
+          <input name="bankName" defaultValue={item.bankName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
+        {/* QR upload */}
         <Row label="PromptPay QR code">
-          <div className="rounded-md border bg-zinc-50 p-8 text-center text-sm text-zinc-500">
-            Upload / manage QR here (UI only)
-          </div>
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
+            <span className="text-xl">＋</span>
+            <span>{qrFile?.name ?? (item.qrUrl ? 'Replace current QR' : 'Upload QR image (.png, .jpg, .jpeg)')}</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={(e) => setQrFile(e.currentTarget.files?.[0] ?? null)}
+              className="hidden"
+            />
+          </label>
         </Row>
 
+        {/* Poster upload */}
         <Row label="Upload Poster">
           <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
-            <span>Upload .png, .jpg, .jpeg (up to 5 photos)</span>
-            <input type="file" accept="image/png,image/jpeg" multiple className="hidden" />
+            <span>{posterFile?.name ?? (item.imageUrl ? 'Replace current poster' : 'Upload .png, .jpg, .jpeg')}</span>
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={(e) => setPosterFile(e.currentTarget.files?.[0] ?? null)}
+              className="hidden"
+            />
           </label>
         </Row>
 
         <div className="pt-2">
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300"
-          >
-            Save
+          <button type="submit" disabled={saving} className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </form>

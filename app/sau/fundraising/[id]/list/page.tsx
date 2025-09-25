@@ -2,50 +2,50 @@
 
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { getFundraisingById } from '@/lib/mock';
+import { useEffect, useState } from 'react';
 
 type Donation = {
-  name: string;   // "Anonymous" or nickname
-  amount: number; // THB
-  at: string;     // ISO date string
-  slip?: string;  // URL to receipt/slip (optional)
+  id: number | string;
+  name: string;
+  amount: number;
+  at: string;     // ISO
+  slip?: string;  // URL | null
 };
-
-function makeFallbackDonations(id: string): Donation[] {
-  const base = (parseInt(id.replace(/\D/g, ''), 10) || 7) % 5; // 0..4
-  const n = 6 + base; // 6..10 rows
-  const list: Donation[] = [];
-  for (let i = 0; i < n; i++) {
-    const amt = 100 * ((i % 5) + 1);
-    list.push({
-      name: i % 3 === 0 ? 'Anonymous' : `Donor ${i + 1}`,
-      amount: amt,
-      at: new Date(Date.now() - i * 86400000).toISOString(),
-      // every other row gets a real-looking receipt URL; others show "—"
-      slip: i % 2 === 0 ? `https://example.org/receipt/${id}/${i + 1}` : '',
-    });
-  }
-  return list;
-}
 
 export default function SAUFundraisingListPage() {
   const params = useParams<{ id: string }>();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const idRaw = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  const f = getFundraisingById(id);
-  if (!f) return <div className="p-6">Fundraising not found.</div>;
+  const [rows, setRows] = useState<Donation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
 
-  // If you later have an API, fetch it here; otherwise we show the fallback.
-  const donations = makeFallbackDonations(id);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErr(null);
+      try {
+        const res = await fetch(`/api/fundraising/${encodeURIComponent(idRaw)}/donations`, {
+          cache: 'no-store',
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Failed to load donations');
+        if (!cancelled) setRows(json.items || []);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || 'Error loading donations');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [idRaw]);
 
   const fmtTHB = (n: number) => n.toLocaleString('en-US');
   const fmtDateTime = (iso: string) =>
     new Date(iso).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+      year: 'numeric', month: 'short', day: '2-digit',
+      hour: '2-digit', minute: '2-digit'
     });
 
   return (
@@ -53,16 +53,15 @@ export default function SAUFundraisingListPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Fundraising List</h1>
         <Link
-          href={`/sau/fundraising/${id}`}
+          href={`/sau/fundraising/${encodeURIComponent(idRaw)}`}
           className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50"
         >
           Back to Edit
         </Link>
       </div>
 
-      <p className="text-sm text-zinc-700">
-        <span className="font-medium">Project:</span> {f.title}
-      </p>
+      {loading && <div className="text-sm text-zinc-600">Loading…</div>}
+      {err && <div className="text-sm text-red-600">Error: {err}</div>}
 
       <div className="overflow-hidden rounded-2xl border border-zinc-300 bg-white">
         <table className="w-full border-collapse text-sm">
@@ -76,30 +75,22 @@ export default function SAUFundraisingListPage() {
             </tr>
           </thead>
           <tbody>
-            {donations.map((d, i) => (
-              <tr key={i} className="border-b border-zinc-200 last:border-b-0">
+            {rows.map((d, i) => (
+              <tr key={String(d.id) + '-' + i} className="border-b border-zinc-200 last:border-b-0">
                 <td className="px-4 py-3 border-r border-zinc-200">{i + 1}.</td>
                 <td className="px-4 py-3 border-r border-zinc-200">{d.name || 'Anonymous'}</td>
                 <td className="px-4 py-3 border-r border-zinc-200">{fmtTHB(d.amount)}</td>
                 <td className="px-4 py-3 border-r border-zinc-200">{fmtDateTime(d.at)}</td>
                 <td className="px-4 py-3">
                   {d.slip ? (
-                    <a
-                      href={d.slip}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 underline"
-                    >
+                    <a href={d.slip} target="_blank" rel="noreferrer" className="text-blue-600 underline">
                       Open
                     </a>
-                  ) : (
-                    '—'
-                  )}
+                  ) : '—'}
                 </td>
               </tr>
             ))}
-
-            {!donations.length && (
+            {!loading && !rows.length && (
               <tr>
                 <td colSpan={5} className="px-4 py-6 text-center text-zinc-500">
                   No donations recorded.

@@ -1,4 +1,6 @@
 // hooks/useCheckout.ts
+'use client';
+
 import { create } from 'zustand';
 import type { CartItem } from '@/types/db';
 
@@ -22,6 +24,7 @@ export const useCheckout = create<State>((set, get) => ({
   // Multi-select state
   items: [],
   setItems: (items) => set({ items, item: items[0] ?? null }),
+
   updateQty: (item, qty) =>
     set((s) => ({
       items: s.items.map((it) =>
@@ -32,6 +35,7 @@ export const useCheckout = create<State>((set, get) => ({
           ? { ...s.item, qty: Math.max(1, qty) }
           : s.item,
     })),
+
   remove: (item) =>
     set((s) => {
       const next = s.items.filter((it) => lineKey(it) !== lineKey(item));
@@ -39,6 +43,7 @@ export const useCheckout = create<State>((set, get) => ({
         s.item && lineKey(s.item) === lineKey(item) ? null : s.item;
       return { items: next, item: nextSingle };
     }),
+
   clear: () => set({ items: [], item: null }),
 
   // Single buy-now (back-compat)

@@ -1,92 +1,197 @@
+// components/forms/EventForm.tsx
 'use client';
+
 import { useState } from 'react';
-import type { Event, Status } from '@/types/db';
+import { useRouter } from 'next/navigation';
 
-function newEvent(): Event {
-  return {
-    id: 'new',
-    title: '',
-    date: new Date().toISOString(),
-    summary: '',
-    description: '',
-    status: 'DRAFT' as Status,
-  };
-}
+type Props = {
+  redirectTo?: string; // where to go after success
+};
 
-function toLocalDatetimeInput(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const mm = pad(d.getMonth() + 1);
-  const dd = pad(d.getDate());
-  const hh = pad(d.getHours());
-  const mi = pad(d.getMinutes());
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`; // for <input type="datetime-local">
-}
+export default function EventForm({ redirectTo = '/sau/events' }: Props) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-export default function EventForm({ initial }: { initial?: Event }) {
-  const [form, setForm] = useState<Event>(() => initial ?? newEvent());
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setErr(null);
 
-  // UI default only; don't force it into state until user picks one
-  const uiStatus = (form.status ?? 'DRAFT') as Status;
+    const fd = new FormData(e.currentTarget);
+
+    const start = fd.get('StartDateTime') as string | null;
+    const end = fd.get('EndDateTime') as string | null;
+
+    // minimal client-side check
+    if (!fd.get('Title')) {
+      setErr('Title is required.');
+      return;
+    }
+    if (!start || !end) {
+      setErr('Start and End date/time are required.');
+      return;
+    }
+
+    const payload = {
+      // PascalCase keys expected by your API/DB mapper
+      Title: String(fd.get('Title') || ''),
+      Description: String(fd.get('Description') || ''),
+      Venue: String(fd.get('Venue') || ''),
+      StartDateTime: new Date(String(start)).toISOString(),
+      EndDateTime: new Date(String(end)).toISOString(),
+      Fee: fd.get('Fee') ? Number(fd.get('Fee')) : 0,
+      OrganizerName: String(fd.get('OrganizerName') || ''),
+      OrganizerLineID: String(fd.get('OrganizerLineID') || ''),
+      MaxParticipant: fd.get('MaxParticipant') ? Number(fd.get('MaxParticipant')) : null,
+      ParticipantDeadline: fd.get('ParticipantDeadline')
+        ? new Date(String(fd.get('ParticipantDeadline'))).toISOString()
+        : null,
+      MaxStaff: fd.get('MaxStaff') ? Number(fd.get('MaxStaff')) : null,
+      MaxStaffDeadline: fd.get('MaxStaffDeadline')
+        ? new Date(String(fd.get('MaxStaffDeadline'))).toISOString()
+        : null,
+      ScholarshipHours: fd.get('ScholarshipHours') ? Number(fd.get('ScholarshipHours')) : null,
+      // optional poster url field if you want to store an image link
+      PosterURL: fd.get('PosterURL') ? String(fd.get('PosterURL')) : null,
+      // SAU creates -> default to PENDING; AUSO will flip to LIVE
+      Status: 'PENDING',
+    };
+
+    try {
+      setSaving(true);
+      const res = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || 'Failed to create event');
+
+      // success
+      router.push(redirectTo);
+      router.refresh();
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to create event');
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
-    <form className="card" onSubmit={(e) => e.preventDefault()}>
-      <label>
-        Title
-        <br />
-        <input
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-        />
-      </label>
+    <form onSubmit={onSubmit} className="space-y-4">
+      {err && (
+        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {err}
+        </div>
+      )}
 
-      <label>
-        Date/Time
-        <br />
-        <input
-          type="datetime-local"
-          value={toLocalDatetimeInput(form.date)}
-          onChange={(e) => {
-            const iso = new Date(e.target.value).toISOString();
-            setForm({ ...form, date: iso });
-          }}
-        />
-      </label>
+      <Field label="Project Name (Title)">
+        <input name="Title" className="input" placeholder="e.g., Welcome Fair" />
+      </Field>
 
-      <label>
-        Summary
-        <br />
-        <input
-          value={form.summary}
-          onChange={(e) => setForm({ ...form, summary: e.target.value })}
-        />
-      </label>
+      <Field label="Organizer Name">
+        <input name="OrganizerName" className="input" placeholder="Your name" />
+      </Field>
 
-      <label>
-        Description
-        <br />
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-        />
-      </label>
+      <Field label="Organizer LineID">
+        <input name="OrganizerLineID" className="input" placeholder="@yourlineid" />
+      </Field>
 
-      <label>
-        Status
-        <br />
-        <select
-          value={uiStatus}
-          onChange={(e) => setForm({ ...form, status: e.target.value as Status })}
+      <Field label="Event Venue">
+        <input name="Venue" className="input" placeholder="CL 13th floor" />
+      </Field>
+
+      <Field label="Start Date & Time">
+        <input name="StartDateTime" type="datetime-local" className="input" />
+      </Field>
+
+      <Field label="End Date & Time">
+        <input name="EndDateTime" type="datetime-local" className="input" />
+      </Field>
+
+      <Field label="Maximum Participant No.">
+        <input name="MaxParticipant" type="number" min={0} className="input" />
+      </Field>
+
+      <Field label="Deadline for Participant">
+        <input name="ParticipantDeadline" type="date" className="input" />
+      </Field>
+
+      <Field label="Maximum Staff No.">
+        <input name="MaxStaff" type="number" min={0} className="input" />
+      </Field>
+
+      <Field label="Deadline for Staff">
+        <input name="MaxStaffDeadline" type="date" className="input" />
+      </Field>
+
+      <Field label="Scholar Hours for Staff">
+        <input name="ScholarshipHours" type="number" min={0} className="input" />
+      </Field>
+
+      <Field label="Paid or Free">
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="paidFree"
+              defaultChecked
+              onChange={(e) => {
+                // no-op, UI only; Fee field is the source of truth
+              }}
+            />
+            <span>Free</span>
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="radio" name="paidFree" />
+            <span>Paid</span>
+          </label>
+        </div>
+      </Field>
+
+      <Field label="Registration Fee (THB)">
+        <input name="Fee" type="number" min={0} className="input" placeholder="0" />
+      </Field>
+
+      <Field label="Poster URL (optional)">
+        <input name="PosterURL" type="url" className="input" placeholder="https://…" />
+      </Field>
+
+      <Field label="Project Description">
+        <textarea name="Description" rows={5} className="input" placeholder="Describe your event…" />
+      </Field>
+
+      <div className="pt-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-zinc-900 px-6 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
         >
-          <option value="DRAFT">DRAFT</option>
-          <option value="PENDING">PENDING</option>
-          <option value="LIVE">LIVE</option>
-        </select>
-      </label>
+          {saving ? 'Creating…' : 'Create Event'}
+        </button>
+      </div>
 
-      <div style={{ height: 8 }} />
-      <button>Save (mock)</button>
+      <style jsx>{`
+        .input {
+          width: 100%;
+          border-radius: 0.375rem;
+          border: 1px solid rgb(212 212 216); /* zinc-300 */
+          padding: 0.5rem 0.75rem;
+          outline: none;
+        }
+        .input:focus {
+          box-shadow: 0 0 0 2px rgb(244 244 245); /* zinc-100 */
+        }
+      `}</style>
     </form>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid items-start gap-2">
+      <div className="text-sm font-medium text-zinc-700">{label}</div>
+      {children}
+    </div>
   );
 }

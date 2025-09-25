@@ -1,4 +1,3 @@
-// app/public/merchandise/cart/page.tsx
 'use client';
 
 import Image from 'next/image';
@@ -16,8 +15,9 @@ export default function CartPage() {
 
   // cart store
   const { items, setQuantity, remove } = useCart();
+  const cartItems: CartItem[] = Array.isArray(items) ? items : [];
 
-  // checkout store (supporting both multi- and single-item APIs)
+  // checkout store
   const setItems = useCheckout((s) => s.setItems as ((items: CartItem[]) => void) | undefined);
   const clearSel = useCheckout((s) => s.clear);
   const setItemSingle = useCheckout((s) => s.setItem as ((item: CartItem) => void) | undefined);
@@ -25,13 +25,13 @@ export default function CartPage() {
   // Local selection state
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const allKeys = useMemo(() => items.map(keyOf), [items]);
+  const allKeys = useMemo(() => cartItems.map(keyOf), [cartItems]);
   const allSelected = selected.size > 0 && selected.size === allKeys.length;
   const anySelected = selected.size > 0;
 
   const selectedItems = useMemo(
-    () => items.filter((i) => selected.has(keyOf(i))),
-    [items, selected]
+    () => cartItems.filter((i) => selected.has(keyOf(i))),
+    [cartItems, selected]
   );
 
   const selectedTotal = useMemo(
@@ -83,7 +83,6 @@ export default function CartPage() {
       setItems(selectedItems);
     } else if (setItemSingle) {
       setItemSingle(selectedItems[0]);
-
       if (selectedItems.length > 1) {
         alert('Your checkout store supports only one item; taking the first selected.');
       }
@@ -96,7 +95,7 @@ export default function CartPage() {
     <main className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold">Merchandise - Cart</h1>
 
-      {items.length === 0 ? (
+      {cartItems.length === 0 ? (
         <div className="rounded-xl border p-8 text-center">
           Your cart is empty.{' '}
           <Link href="/public/merchandise" className="underline">
@@ -115,7 +114,7 @@ export default function CartPage() {
 
           {/* Rows */}
           <div className="space-y-4">
-            {items.map((i) => {
+            {cartItems.map((i) => {
               const k = keyOf(i);
               return (
                 <CartRow
@@ -188,8 +187,8 @@ function CartRow({
       </div>
       <div className="flex-1">
         <div className="text-lg font-semibold">{item.title}</div>
-        <div className="text-sm text-gray-600">Size — {item.size}</div>
-        <div className="text-sm text-gray-600">Color — {item.color}</div>
+        {item.size && <div className="text-sm text-gray-600">Size — {item.size}</div>}
+        {item.color && <div className="text-sm text-gray-600">Color — {item.color}</div>}
         <div className="mt-1 font-medium">{lineTotal} Baht</div>
       </div>
       <div className="flex items-center gap-3">

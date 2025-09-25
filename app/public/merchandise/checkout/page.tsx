@@ -1,4 +1,3 @@
-// app/public/merchandise/checkout/page.tsx
 'use client';
 
 import Image from 'next/image';
@@ -7,15 +6,15 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { useCheckout } from '@/hooks/useCheckout';
+import { supabase } from '@/lib/supabaseClient';
 import type { CartItem } from '@/types/db';
 
 const keyOf = (i: CartItem) => `${i.itemId}-${i.size}-${i.color}`;
 
 export default function CheckoutPage() {
-  const cartItemsRaw = useCart((s) => s.items);
-  const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
-  const cartTotalRaw = useCart((s) => s.total);
-  const cartTotal = typeof cartTotalRaw === 'number' ? cartTotalRaw : 0;
+  const { items: cartItemsRaw, total: cartTotal } = useCart();
+const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
+
 
   const selItemsRaw = useCheckout((s) => s.items);
   const singleItem = useCheckout((s) => s.item);
@@ -27,8 +26,9 @@ export default function CheckoutPage() {
 
   const router = useRouter();
   const [fileName, setFileName] = useState<string>('');
+  const [slipFile, setSlipFile] = useState<File | null>(null);
 
-  // NEW: buyer info state
+  // Buyer info state
   const [buyerName, setBuyerName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [lineId, setLineId] = useState('');
@@ -62,30 +62,76 @@ export default function CheckoutPage() {
       0
     ) || cartTotal;
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!Array.isArray(lineItems) || lineItems.length === 0) {
       alert('Cart is empty.');
       return;
     }
 
-    // Simple required validation for buyer info
     if (!buyerName.trim() || !studentId.trim() || !lineId.trim()) {
       alert('Please fill your Name, Student ID, and LINE ID.');
       return;
     }
 
+    let slipUrl: string | null = null;
+
     try {
+      if (slipFile) {
+        const fileExt = slipFile.name.split('.').pop();
+        const filePath = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('order-slips')
+          .upload(filePath, slipFile);
+
+        if (uploadError) {
+          alert('❌ Failed to upload slip: ' + uploadError.message);
+          return;
+        }
+
+        // Get a public URL (or signed URL if bucket is private)
+        const { data: publicUrlData } = supabase.storage
+          .from('order-slips')
+          .getPublicUrl(filePath);
+
+        slipUrl = publicUrlData?.publicUrl ?? null;
+      }
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          fullName: buyerName,
+          lineId,
+          totalAmount: computedTotal,
+          slipUpload: slipUrl,
+          items: lineItems,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert('❌ Failed to create order: ' + (data.error || 'Unknown error'));
+        return;
+      }
+
+      // Save locally for UX
       const purchasedKeys = lineItems.map(keyOf);
       sessionStorage.setItem('pp:lastPurchased', JSON.stringify(purchasedKeys));
       sessionStorage.setItem(
         'pp:buyerInfo',
         JSON.stringify({ buyerName, studentId, lineId })
       );
-    } catch {
-      // ignore
-    }
 
-    router.push('/public/merchandise/checkout/success');
+      router.push('/public/merchandise/checkout/success');
+    } catch (err) {
+      console.error(err);
+      alert('❌ Something went wrong while placing the order.');
+    }
   }
 
   return (
@@ -110,8 +156,8 @@ export default function CheckoutPage() {
             </div>
             <div className="flex-1">
               <div className="text-lg font-semibold">{i.title}</div>
-              <div className="text-sm text-gray-600">Size - {i.size}</div>
-              <div className="text-sm text-gray-600">Color - {i.color}</div>
+              {i.size && <div className="text-sm text-gray-600">Size - {i.size}</div>}
+              {i.color && <div className="text-sm text-gray-600">Color - {i.color}</div>}
               <div className="mt-1 font-medium">
                 {(Number(i.price) || 0) * (Number(i.qty) || 0)} Baht
               </div>
@@ -128,8 +174,8 @@ export default function CheckoutPage() {
         Total - {computedTotal} Baht
       </h2>
 
-      {/* NEW: Buyer info */}
-      <section className="mt-6 rounded-xl  p-4">
+      {/* Buyer info */}
+      <section className="mt-6 rounded-xl p-4">
         <h3 className="text-lg font-semibold">Your Information</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div>
@@ -205,8 +251,10 @@ export default function CheckoutPage() {
               accept="image/*,.pdf"
               onChange={(e) => {
                 if (e.target.files && e.target.files.length > 0) {
+                  setSlipFile(e.target.files[0]);
                   setFileName(e.target.files[0].name);
                 } else {
+                  setSlipFile(null);
                   setFileName('');
                 }
               }}

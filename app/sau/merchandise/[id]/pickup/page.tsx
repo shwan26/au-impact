@@ -1,8 +1,10 @@
-// app/sau/merchandise/[id]/pickup.tsx
+// app/sau/merchandise/[id]/pickup/page.tsx
 'use client';
 
 import { notFound, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { getMerchById } from '@/lib/mock';
+import React from 'react';
 
 export default function SAUMerchPickupPage({ params }: { params: { id: string } }) {
   const { id } = params;
@@ -42,25 +44,61 @@ export default function SAUMerchPickupPage({ params }: { params: { id: string } 
           <input name="pickupLocation" placeholder="e.g., CL 11th Floor"
             className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
         </Row>
-
-        <Row label="Pickup Date">
-          <input name="pickupDate" type="text" placeholder="e.g., 28 Jan – 14 Feb"
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
+        <Row label="Merchandise Number">
+          <div className="py-2 font-mono">{item.itemId}</div>
+          <input type="hidden" name="itemId" value={item.itemId} />
         </Row>
 
-        <Row label="Pickup Time">
-          <input name="pickupTime" type="text" placeholder="e.g., 10:30 – 15:00"
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
+        <Row label="Merchandise Name">
+          <input
+            name="title"
+            defaultValue={item.title}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+          />
         </Row>
 
         <Row label="Photo">
-          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
+          <label
+            htmlFor="pickup-photo"
+            className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200"
+          >
             <span className="text-xl">＋</span>
             <span>{file ? file.name : 'Upload .png, .jpg, .jpeg'}</span>
-            <input type="file" accept="image/png,image/jpeg" onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} className="hidden" />
           </label>
+          <input
+            id="pickup-photo"
+            name="photo"
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)}
+            className="hidden"
+          />
+        </Row>
+        <Row label="Pickup Location">
+          <input
+            name="pickupPoint"
+            placeholder="e.g., CL 11th Floor"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+          />
         </Row>
 
+        <Row label="Pickup Date">
+          <input
+            name="pickupDate"
+            type="text"
+            placeholder="e.g., 28 Jan – 14 Feb"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+          />
+        </Row>
+
+        <Row label="Pickup Time">
+          <input
+            name="pickupTime"
+            type="text"
+            placeholder="e.g., 10:30 – 15:00"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+          />
+        </Row>
         <div className="pt-2">
           <button type="submit" className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300">
             Save

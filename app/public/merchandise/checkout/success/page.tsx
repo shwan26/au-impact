@@ -1,4 +1,3 @@
-// app/public/merchandise/checkout/success/page.tsx
 'use client';
 
 import Link from 'next/link';
@@ -10,8 +9,7 @@ import type { CartItem } from '@/types/db';
 const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
 
 export default function CheckoutSuccessPage() {
-  const cartItems = useCart((s) => s.items as CartItem[]);
-  const removeFromCart = useCart((s) => s.remove);
+  const { items: cartItems, remove, clear } = useCart();
   const clearSelection = useCheckout((s) => s.clear);
 
   const ranRef = useRef(false);
@@ -29,7 +27,7 @@ export default function CheckoutSuccessPage() {
       if (Array.isArray(purchasedKeys) && purchasedKeys.length > 0) {
         for (const item of cartItems) {
           if (purchasedKeys.includes(keyOf(item))) {
-            removeFromCart(item);
+            remove(item);
           }
         }
       }
@@ -38,7 +36,7 @@ export default function CheckoutSuccessPage() {
     } catch {
       // ignore JSON/storage issues
     }
-  }, [cartItems, clearSelection, removeFromCart]);
+  }, [cartItems, clearSelection, remove]);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 text-center">

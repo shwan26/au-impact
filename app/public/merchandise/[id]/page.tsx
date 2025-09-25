@@ -3,17 +3,43 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import type { Merch } from '@/types/db';
-import { merches } from '@/lib/mock';
 import { CartButton, PurchaseForm } from './MerchClient';
 
+export default async function Page({ params }: { params: { id: string } }) {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_SITE_URL}/api/merchandise/${params.id}`,
+    { cache: 'no-store' }
+  );
 
+  if (!res.ok) return notFound();
+  const data = await res.json();
 
+  if (!data) return notFound();
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-
-  const merch = merches.find((m) => m.slug === id) as Merch | undefined;
-  if (!merch) return notFound();
+  // Map API fields into your Merch type
+  const merch: Merch = {
+    itemId: String(data.ItemID),
+    slug: String(data.Title ?? '').toLowerCase().replace(/\s+/g, '-'),
+    title: String(data.Title ?? ''),
+    description: data.Description ?? '',
+    price: Number(data.Price ?? 0),
+    availableSizes: [], // extend later if needed
+    availableColors: [],
+    images: {
+      poster: { alt: 'Poster', url: data.PosterURL ?? '' },
+      frontView: data.FrontURL ? { alt: 'Front', url: data.FrontURL } : undefined,
+      backView: undefined, // 👈 explicitly included to satisfy type
+      sizeChart: data.SizeChartURL
+        ? { alt: 'Size Chart', url: data.SizeChartURL }
+        : undefined,
+      misc: Array.isArray(data.MiscURLs)
+        ? data.MiscURLs.map((u: string, idx: number) => ({
+            alt: `Misc ${idx + 1}`,
+            url: u,
+          }))
+        : [],
+    },
+  } as Partial<Merch> as Merch;
 
   const tiles = [
     merch.images.poster,
