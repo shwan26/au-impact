@@ -12,7 +12,7 @@ export default function AUSOHome() {
         style={{ aspectRatio: '16 / 9' }}  // keeps a nice wide calendar shape
       >
         <Image
-          src="/app/public/image/home/june-calendar.jpg"
+          src='/images/home/sep-calendar.png'
           alt=""
           fill
           sizes="(max-width: 768px) 100vw, 1000px"
