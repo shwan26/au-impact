@@ -13,8 +13,9 @@ export default function SAUNav(){
           padding: '16px 0'
         }}
             >
-            <Link href="/sau"><strong style={{ fontSize: '1.2rem' }}>SAU</strong></Link>
+            
             <div style={{ display: 'flex', gap: '24px' }}>
+              <Link href="/sau"><strong style={{ fontSize: '1.2rem' }}>SAU</strong></Link>
               <Link href="/sau/event">Events</Link>
               <Link href="/sau/fundraising">Fundraising</Link>
               <Link href="/sau/merchandise">Merch</Link>
