@@ -110,7 +110,7 @@ export default function SignupForm() {
       <Field label="Faculty">
         <input className="w-full rounded-md border px-3 py-2" value={form.faculty} onChange={onChange('faculty')} />
       </Field>
-      <Field label="Current Year of Study">
+      <Field label="Current Year of Study (1 - 8)">
         <input
           className="w-full rounded-md border px-3 py-2"
           value={form.year}
@@ -144,7 +144,7 @@ export default function SignupForm() {
       <Field label="Student ID">
         <input className="w-full rounded-md border px-3 py-2" value={form.studentId} onChange={onChange('studentId')} />
       </Field>
-      <Field label="AU Email">
+      <Field label="AU Email / Personal Email">
         <input
           type="email"
           className="w-full rounded-md border px-3 py-2"

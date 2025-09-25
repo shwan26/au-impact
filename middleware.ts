@@ -10,8 +10,8 @@ const ROLE_MAP: Record<string, 'sau' | 'auso'> = {
 
 function requiredRoleFor(pathname: string): 'sau' | 'auso' | null {
   // Exact matches for landing pages
-  if (pathname === '/portal/sau') return 'sau';
-  if (pathname === '/portal/auso') return 'auso';
+  // if (pathname === '/portal/sau') return 'sau';
+  // if (pathname === '/portal/auso') return 'auso';
   // Prefix matches for sections
   if (pathname === '/sau' || pathname.startsWith('/sau/')) return 'sau';
   if (pathname == '/auso' || pathname.startsWith('/auso/')) return 'auso';
