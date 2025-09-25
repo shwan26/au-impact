@@ -61,6 +61,7 @@ export default function SAUEditAnnouncementPage() {
   const [photoUrl, setPhotoUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,7 +94,7 @@ export default function SAUEditAnnouncementPage() {
   async function save(newStatus: 'DRAFT' | 'PENDING') {
     if (!item) return;
     const locked = item.status === 'LIVE' || item.status === 'COMPLETE';
-    if (locked) return; // safety: do nothing if approved
+    if (locked) return; // safety
 
     try {
       setSaving(true);
@@ -102,7 +103,7 @@ export default function SAUEditAnnouncementPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // send PascalCase keys to API
+          // API expects PascalCase keys
           Topic: topic,
           Description: description || null,
           PhotoURL: photoUrl || null,
@@ -147,7 +148,6 @@ export default function SAUEditAnnouncementPage() {
         </Link>
       </div>
 
-      {/* Optional banner when locked */}
       {locked && (
         <div className="rounded-md border border-green-300 bg-green-50 p-3 text-sm text-green-800">
           This announcement is approved and read-only.
@@ -190,6 +190,60 @@ export default function SAUEditAnnouncementPage() {
             className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${locked ? 'bg-zinc-50' : ''}`}
             placeholder="https://…"
           />
+        </RowBox>
+
+        {/* NEW: Upload Photo */}
+        <RowBox label="Upload Photo">
+          <div className="flex flex-col gap-2">
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploading || locked}
+              className="block w-full max-w-xs text-sm"
+              onChange={async (e) => {
+                const file = e.currentTarget.files?.[0];
+                if (!file || !item) return;
+                try {
+                  setUploading(true);
+                  const fd = new FormData();
+                  fd.append('file', file);
+                  const res = await fetch(`/api/announcements/${item.announcementId}/photo`, {
+                    method: 'POST',
+                    body: fd,
+                  });
+                  const text = await res.text();
+                  if (!res.ok) {
+                    try {
+                      const j = text ? JSON.parse(text) : null;
+                      throw new Error((j && j.error) || text || 'Upload failed');
+                    } catch {
+                      throw new Error(text || 'Upload failed');
+                    }
+                  }
+                  const updated = text ? (JSON.parse(text) as ApiRow) : null;
+                  if (!updated) throw new Error('Invalid response');
+                  // sync local state
+                  setPhotoUrl(updated.PhotoURL ?? '');
+                  setItem((prev) => (prev ? { ...prev, photoUrl: updated.PhotoURL ?? null } : prev));
+                  // clear file input
+                  e.currentTarget.value = '';
+                } catch (err: any) {
+                  alert(err?.message || 'Upload failed');
+                } finally {
+                  setUploading(false);
+                }
+              }}
+            />
+            <div className="text-xs text-zinc-500">
+              {uploading ? 'Uploading…' : locked ? 'Uploads disabled after approval' : 'JPG/PNG recommended.'}
+            </div>
+
+            {photoUrl && (
+              <div className="mt-2 overflow-hidden rounded border border-zinc-200">
+                <img src={photoUrl} alt="Announcement photo" className="h-auto w-full object-cover" />
+              </div>
+            )}
+          </div>
         </RowBox>
 
         <RowBox label="Status">

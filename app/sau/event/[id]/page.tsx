@@ -1,3 +1,4 @@
+// app/sau/event/[id]/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -20,7 +21,20 @@ type ApiEvent = {
   StartDateTime?: string | null;
   EndDateTime?: string | null;
 
-  Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | 'APPROVED' | 'REJECTED' | 'DRAFT' | string;
+  Status?: string;
+
+  ScholarshipHours?: number | null;
+  OrganizerName?: string | null;
+  OrganizerLineID?: string | null;
+  LineGpURL?: string | null;
+  LineGpQRCode?: string | null;
+
+  Fee?: number | null;
+
+  BankName?: string | null;
+  BankAccountNo?: string | null;
+  BankAccountName?: string | null;
+  PromptPayQR?: string | null;
 };
 
 type UIEvent = {
@@ -32,6 +46,17 @@ type UIEvent = {
   start: string | null; // ISO
   end: string | null;   // ISO
   status: string;
+
+  scholarshipHours: number | null;
+  organizerLineId: string | null;
+  lineGroupUrl: string | null;
+  lineGroupQr: string | null;
+
+  fee: number | null;
+  bankName: string | null;
+  bankAccountNo: string | null;
+  bankAccountName: string | null;
+  promptPayQr: string | null;
 };
 
 function toLocalDT(iso?: string | null) {
@@ -59,6 +84,28 @@ export default function SAUEventEditPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // gallery state
+  const [gallery, setGallery] = useState<string[]>([]);
+  const [photoFiles, setPhotoFiles] = useState<FileList | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+
+  // PromptPay QR upload
+  const [qrUploading, setQrUploading] = useState(false);
+  const [qrErr, setQrErr] = useState<string | null>(null);
+
+  async function loadGallery(eventId: string) {
+    try {
+      const r = await fetch(`/api/events/${eventId}/photos`, { cache: 'no-store' });
+      const t = await r.text();
+      if (!r.ok || !t) return;
+      const j = JSON.parse(t);
+      if (Array.isArray(j?.items)) setGallery(j.items);
+    } catch {
+      // ignore
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -79,9 +126,23 @@ export default function SAUEventEditPage() {
           start: json.StartDate ?? json.StartDateTime ?? null,
           end: json.EndDate ?? json.EndDateTime ?? null,
           status: String(json.Status ?? 'PENDING').toUpperCase(),
+
+          scholarshipHours: typeof json.ScholarshipHours === 'number' ? json.ScholarshipHours : null,
+          organizerLineId: json.OrganizerLineID ?? null,
+          lineGroupUrl: json.LineGpURL ?? null,
+          lineGroupQr: json.LineGpQRCode ?? null,
+
+          fee: typeof json.Fee === 'number' ? json.Fee : null,
+          bankName: json.BankName ?? null,
+          bankAccountNo: json.BankAccountNo ?? null,
+          bankAccountName: json.BankAccountName ?? null,
+          promptPayQr: json.PromptPayQR ?? null,
         };
 
-        if (!cancelled) setData(ui);
+        if (!cancelled) {
+          setData(ui);
+          loadGallery(String(ui.id));
+        }
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Error loading event');
       } finally {
@@ -114,6 +175,31 @@ export default function SAUEventEditPage() {
       return;
     }
 
+    const scholarshipHoursRaw = String(fd.get('scholarshipHours') ?? '').trim();
+    const scholarshipHours =
+      scholarshipHoursRaw === '' ? null : Number.isNaN(Number(scholarshipHoursRaw)) ? null : Number(scholarshipHoursRaw);
+
+    // Fee & bank fields
+    const feeRaw = String(fd.get('fee') ?? '').trim();
+    const fee = feeRaw === '' ? null : Number(feeRaw);
+    const isPaid = typeof fee === 'number' && fee > 0;
+
+    const bankName = String(fd.get('bankName') ?? '').trim() || null;
+    const bankAccountNo = String(fd.get('bankAccountNo') ?? '').trim() || null;
+    const bankAccountName = String(fd.get('bankAccountName') ?? '').trim() || null;
+    const promptPayQr = String(fd.get('promptPayQr') ?? '').trim() || data.promptPayQr || null;
+
+    if (isPaid) {
+      if (!bankAccountNo && !promptPayQr) {
+        setErr('For paid events, fill Bank Account No. OR provide a PromptPay QR.');
+        return;
+      }
+      if (bankAccountNo && !bankAccountName) {
+        setErr('Please provide Bank Account Name when Account No. is filled.');
+        return;
+      }
+    }
+
     const payload: Record<string, any> = {
       Title: String(fd.get('projectName') || data.title),
       Description: String(fd.get('description') ?? data.description ?? ''),
@@ -122,6 +208,19 @@ export default function SAUEventEditPage() {
       EndDate: nextEnd,
       Status: data.status ?? 'PENDING',
       PhotoURL: data.photoUrl ?? null,
+
+      ScholarshipHours: scholarshipHours,
+      OrganizerName: String(fd.get('organizerName') ?? '').trim() || null,
+      OrganizerLineID: String(fd.get('organizerLineId') ?? data.organizerLineId ?? '').trim() || null,
+      LineGpURL: String(fd.get('lineGroupUrl') ?? data.lineGroupUrl ?? '').trim() || null,
+      LineGpQRCode: String(fd.get('lineGroupQr') ?? data.lineGroupQr ?? '').trim() || null,
+
+      Fee: fee,
+
+      BankName: bankName,
+      BankAccountNo: bankAccountNo,
+      BankAccountName: bankAccountName,
+      PromptPayQR: promptPayQr,
     };
 
     try {
@@ -137,16 +236,29 @@ export default function SAUEventEditPage() {
       if (!res.ok || !json) throw new Error(json?.error || 'Failed to save');
 
       const updated: ApiEvent = json;
-      setData({
-        id: String(updated.EventID ?? data.id),
-        title: (updated.Title ?? data.title) || 'Untitled Event',
-        description: updated.Description ?? data.description,
-        photoUrl: updated.PhotoURL ?? (updated as any).PosterURL ?? data.photoUrl,
-        location: updated.Location ?? (updated as any).Venue ?? data.location,
-        start: updated.StartDate ?? updated.StartDateTime ?? data.start,
-        end: updated.EndDate ?? updated.EndDateTime ?? data.end,
-        status: String(updated.Status ?? data.status ?? 'PENDING').toUpperCase(),
-      });
+      setData((prev) => ({
+        ...(prev as UIEvent),
+        id: String(updated.EventID ?? (prev?.id ?? '')),
+        title: (updated.Title ?? prev?.title ?? 'Untitled Event') || 'Untitled Event',
+        description: updated.Description ?? prev?.description ?? '',
+        photoUrl: updated.PhotoURL ?? (updated as any).PosterURL ?? prev?.photoUrl ?? null,
+        location: updated.Location ?? (updated as any).Venue ?? prev?.location ?? null,
+        start: updated.StartDate ?? updated.StartDateTime ?? prev?.start ?? null,
+        end: updated.EndDate ?? updated.EndDateTime ?? prev?.end ?? null,
+        status: String(updated.Status ?? prev?.status ?? 'PENDING').toUpperCase(),
+
+        scholarshipHours:
+          typeof updated.ScholarshipHours === 'number' ? updated.ScholarshipHours : prev?.scholarshipHours ?? null,
+        organizerLineId: updated.OrganizerLineID ?? prev?.organizerLineId ?? null,
+        lineGroupUrl: updated.LineGpURL ?? prev?.lineGroupUrl ?? null,
+        lineGroupQr: updated.LineGpQRCode ?? prev?.lineGroupQr ?? null,
+
+        fee: typeof updated.Fee === 'number' ? updated.Fee : prev?.fee ?? null,
+        bankName: updated.BankName ?? prev?.bankName ?? null,
+        bankAccountNo: updated.BankAccountNo ?? prev?.bankAccountNo ?? null,
+        bankAccountName: updated.BankAccountName ?? prev?.bankAccountName ?? null,
+        promptPayQr: updated.PromptPayQR ?? prev?.promptPayQr ?? null,
+      }));
       alert('Event saved.');
     } catch (e: any) {
       setErr(e?.message || 'Error while saving');
@@ -155,9 +267,72 @@ export default function SAUEventEditPage() {
     }
   }
 
+  // Photos upload
+  async function onUploadPhotos() {
+    if (!data) return;
+    if (!photoFiles || !photoFiles.length) {
+      setUploadErr('Please select one or more images.');
+      return;
+    }
+    setUploadErr(null);
+    try {
+      setUploading(true);
+      const form = new FormData();
+      Array.from(photoFiles).forEach((f) => form.append('files', f));
+
+      const res = await fetch(`/api/events/${data.id}/photos/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      const txt = await res.text();
+      const j = txt ? JSON.parse(txt) : {};
+      if (!res.ok) throw new Error(j?.error || 'Upload failed');
+
+      await loadGallery(String(data.id));
+      setPhotoFiles(null);
+      alert('Photos uploaded.');
+    } catch (e: any) {
+      setUploadErr(e?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  // PromptPay QR upload
+  async function onUploadQR(file: File) {
+    if (!data) return;
+    try {
+      setQrUploading(true);
+      setQrErr(null);
+
+      const form = new FormData();
+      form.append('file', file);
+
+      const res = await fetch(`/api/events/${data.id}/bank/qr/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      const txt = await res.text();
+      const j = txt ? JSON.parse(txt) : {};
+      if (!res.ok) throw new Error(j?.error || 'QR upload failed');
+
+      const url = j?.url as string | undefined;
+      if (url) {
+        setData((prev) => prev ? { ...prev, promptPayQr: url } : prev);
+      }
+      alert('PromptPay QR uploaded.');
+    } catch (e: any) {
+      setQrErr(e?.message || 'Upload failed');
+    } finally {
+      setQrUploading(false);
+    }
+  }
+
   if (loading) return <div className="p-6">Loading…</div>;
   if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
   if (!data) return <div className="p-6">Event not found.</div>;
+
+  const isPaid = typeof data.fee === 'number' && data.fee > 0;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -174,9 +349,17 @@ export default function SAUEventEditPage() {
 
         <Field label="Project Name" name="projectName" defaultValue={data.title} />
         <Field label="Organizer Name" name="organizerName" defaultValue="" />
-        <Field label="Organizer LineID" name="organizerLineId" defaultValue="" />
+
+        {/* Organizer + LINE */}
+        <Field label="Organizer LINE ID" name="organizerLineId" defaultValue={data.organizerLineId ?? ''} />
+        <Field label="LINE Group URL" name="lineGroupUrl" defaultValue={data.lineGroupUrl ?? ''} />
+        <Field label="LINE Group QR (image URL)" name="lineGroupQr" defaultValue={data.lineGroupQr ?? ''} />
+
+        <Field label="Scholarship Hours" name="scholarshipHours" type="number" min={0} defaultValue={data.scholarshipHours ?? ''} />
+
         <Field label="Event Venue" name="eventVenue" defaultValue={data.location ?? ''} />
 
+        {/* Date/time */}
         <Row label="Event Date & Time">
           <div className="grid grid-cols-2 gap-3">
             <input
@@ -194,6 +377,75 @@ export default function SAUEventEditPage() {
           </div>
         </Row>
 
+        {/* Fee (live state so Payment block toggles immediately) */}
+        <Row label="Registration Fee (THB, leave blank if free)">
+          <input
+            name="fee"
+            type="number"
+            min={0}
+            defaultValue={data.fee ?? ''}
+            onChange={(e) => {
+              const v = e.currentTarget.value;
+              setData((d) => d ? { ...d, fee: v === '' ? null : Number(v) } : d);
+            }}
+            className="w-56 rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+          />
+        </Row>
+
+        {/* Bank fields – only when fee > 0 */}
+        {isPaid && (
+          <div className="rounded-md border border-zinc-200 p-3">
+            <div className="mb-2 text-sm font-semibold">Payment Information (required for paid events)</div>
+            <Row label="Bank Name">
+              <input name="bankName" defaultValue={data.bankName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2" />
+            </Row>
+            <Row label="Account No.">
+              <input name="bankAccountNo" defaultValue={data.bankAccountNo ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2" />
+            </Row>
+            <Row label="Account Name">
+              <input name="bankAccountName" defaultValue={data.bankAccountName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2" />
+            </Row>
+
+            <Row label="PromptPay QR">
+              <div className="space-y-2">
+                <div className="flex items-center gap-4">
+                  {data.promptPayQr ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={data.promptPayQr}
+                      alt="PromptPay QR"
+                      className="h-32 w-32 rounded-md border object-contain"
+                    />
+                  ) : null}
+                  <label className="flex h-28 w-60 cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-sm hover:bg-zinc-200">
+                    <span>＋ Upload QR (.png/.jpg)</span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.currentTarget.files?.[0];
+                        if (f) onUploadQR(f);
+                      }}
+                    />
+                  </label>
+                </div>
+                <div className="text-xs text-zinc-600">
+                  Or paste URL:
+                  <input
+                    name="promptPayQr"
+                    defaultValue={data.promptPayQr ?? ''}
+                    className="ml-2 inline-flex w-[70%] rounded-md border border-zinc-300 px-2 py-1"
+                  />
+                </div>
+                {qrErr && <div className="text-sm text-red-600">{qrErr}</div>}
+                {qrUploading && <div className="text-sm">Uploading…</div>}
+              </div>
+            </Row>
+          </div>
+        )}
+
+        {/* Poster */}
         <Row label="Upload Poster">
           <div className="flex items-center gap-4">
             {data.photoUrl ? (
@@ -208,6 +460,49 @@ export default function SAUEventEditPage() {
               <span>＋ Upload .png, .jpg, .jpeg</span>
               <input type="file" accept="image/png,image/jpeg" className="hidden" name="poster" />
             </label>
+          </div>
+        </Row>
+
+        {/* Multi-photos upload + gallery */}
+        <Row label="Photos (multiple)">
+          <div className="space-y-3">
+            <label className="flex h-28 w-full cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-sm hover:bg-zinc-200">
+              <span>＋ Select images (.png, .jpg, .jpeg)</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                multiple
+                className="hidden"
+                onChange={(e) => setPhotoFiles(e.currentTarget.files)}
+              />
+            </label>
+
+            {photoFiles?.length ? (
+              <div className="text-xs text-zinc-600">
+                Selected: {Array.from(photoFiles).map((f) => f.name).join(', ')}
+              </div>
+            ) : null}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onUploadPhotos}
+                disabled={uploading || !photoFiles?.length}
+                className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-300 disabled:opacity-60"
+              >
+                {uploading ? 'Uploading…' : 'Upload selected photos'}
+              </button>
+              {uploadErr && <div className="text-red-600 text-sm">{uploadErr}</div>}
+            </div>
+
+            {gallery.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {gallery.map((u) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={u} src={u} alt="Event photo" className="h-36 w-full rounded-md border object-cover" />
+                ))}
+              </div>
+            )}
           </div>
         </Row>
 

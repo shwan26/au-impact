@@ -1,352 +1,281 @@
-'use client';
-
-import { useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+// app/auso/event/[id]/page.tsx
+import { unstable_noStore as noStore } from 'next/cache';
+import { notFound } from 'next/navigation';
+import RegisterButtons from '@/components/events/RegisterButtons';
+import { getBaseUrl } from '@/lib/baseUrl';
 
 type ApiEvent = {
-  EventID: number;
-  Title: string;
+  EventID?: string | number | null;
+  Title?: string | null;
   Description?: string | null;
-  Venue?: string | null;
+  PosterURL?: string | null;
+  PhotoURL?: string | null;
   StartDateTime?: string | null;
   EndDateTime?: string | null;
   Fee?: number | null;
+  Venue?: string | null;
+
+  MaxStaff?: number | null;
+  MaxParticipant?: number | null;
+
+  ScholarshipHours?: number | null;
   OrganizerName?: string | null;
   OrganizerLineID?: string | null;
-  MaxParticipant?: number | null;
-  ParticipantDeadline?: string | null;
-  MaxStaff?: number | null;
-  MaxStaffDeadline?: string | null;
-  ScholarshipHours?: number | null;
-  Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | 'REJECTED' | 'DRAFT' | 'UNKNOWN' | string;
+  LineGpURL?: string | null;
+  LineGpQRCode?: string | null;
+
+  BankName?: string | null;
+  BankAccountNo?: string | null;
+  BankAccountName?: string | null;
+  PromptPayQR?: string | null;
+
+  id?: string | number | null;
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  venue?: string | null;
+  posterurl?: string | null;
+  photourl?: string | null;
+  photo_url?: string | null;
+
+  maxstaff?: number | null;
+  maxparticipant?: number | null;
+  scholarshiphours?: number | null;
+  organizername?: string | null;
+  organizerlineid?: string | null;
+  linegpurl?: string | null;
+  linegpqrcode?: string | null;
+
+  Photos?: string[] | null;
+  Gallery?: string[] | null;
+  PostURLs?: Array<string | { PostURL?: string | null }> | null;
 };
 
-function toProjectNumber(rawId?: number | string) {
-  const digits = String(rawId ?? '').replace(/\D/g, '').padStart(6, '0') || '000000';
-  return `E${digits}`;
+type RegItem = { studentId: string; name: string; phone: string; attended?: boolean };
+type ApiRegs = { staff: RegItem[]; participants: RegItem[] };
+
+function formatRange(startISO?: string | null, endISO?: string | null) {
+  if (!startISO) return '';
+  const s = new Date(startISO);
+  const e = endISO ? new Date(endISO) : s;
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+  const sameDay =
+    s.getFullYear() === e.getFullYear() &&
+    s.getMonth() === e.getMonth() &&
+    s.getDate() === e.getDate();
+  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
+  return sameDay
+    ? s.toLocaleDateString(undefined, opts)
+    : `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`;
 }
-function toLocalDT(iso?: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
-export default function AUSOEventEditPage() {
-  const params = useParams<{ id: string }>();
-  const router = useRouter();
-  const search = useSearchParams();
-  const id = Array.isArray(params.id) ? params.id[0] : params.id;
-
-  const [data, setData] = useState<ApiEvent | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  // Load the event
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        setErr(null);
-        const res = await fetch(`/api/events/${id}`, { cache: 'no-store' });
-        const json = await res.json();
-        if (!res.ok) throw new Error(json?.error || 'Failed to load event');
-        if (!cancelled) setData(json as ApiEvent);
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || 'Error loading event');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [id]);
-
-  const startDefault = useMemo(() => toLocalDT(data?.StartDateTime), [data]);
-  const endDefault   = useMemo(() => toLocalDT(data?.EndDateTime), [data]);
-
-  async function saveFields(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (!data) return;
-
-    const fd = new FormData(e.currentTarget);
-    const toISO = (name: string) => {
-      const v = String(fd.get(name) || '');
-      return v ? new Date(v).toISOString() : null;
-    };
-    const num = (name: string, fallback: number | null) => {
-      const raw = fd.get(name);
-      if (raw === null || raw === '') return fallback;
-      const n = Number(raw);
-      return Number.isFinite(n) ? n : fallback;
-    };
-
-    const payload: Record<string, any> = {
-      Title: String(fd.get('projectName') || data.Title).trim(),
-      Description: String(fd.get('description') ?? data.Description ?? '').trim(),
-      Venue: String(fd.get('eventVenue') ?? data.Venue ?? '').trim(),
-      StartDateTime: toISO('startDate') ?? data.StartDateTime ?? null,
-      EndDateTime: toISO('endDate') ?? data.EndDateTime ?? null,
-      Fee: num('registrationFee', data.Fee ?? null),
-      OrganizerName: String(fd.get('organizerName') ?? data.OrganizerName ?? ''),
-      OrganizerLineID: String(fd.get('organizerLineId') ?? data.OrganizerLineID ?? ''),
-      MaxParticipant: num('maxParticipants', data.MaxParticipant ?? null),
-      ParticipantDeadline: String(fd.get('participantDeadline') || '')
-        ? new Date(String(fd.get('participantDeadline'))).toISOString()
-        : data.ParticipantDeadline ?? null,
-      MaxStaff: num('maxStaff', data.MaxStaff ?? null),
-      MaxStaffDeadline: String(fd.get('staffDeadline') || '')
-        ? new Date(String(fd.get('staffDeadline'))).toISOString()
-        : data.MaxStaffDeadline ?? null,
-      ScholarshipHours: num('scholarHours', data.ScholarshipHours ?? null),
-      Status: data.Status ?? 'PENDING',
-    };
-
-    try {
-      setSaving(true);
-      setErr(null);
-      const res = await fetch(`/api/events/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Failed to save');
-      setData(json as ApiEvent);
-      alert('Event saved.');
-    } catch (e: any) {
-      setErr(e?.message || 'Error while saving');
-    } finally {
-      setSaving(false);
-    }
+function uniqNonEmpty(urls: (string | null | undefined)[]) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const u of urls) {
+    const s = String(u ?? '').trim();
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    out.push(s);
   }
-
-  async function setStatus(status: 'LIVE' | 'PENDING' | 'REJECTED' | 'COMPLETE' | 'DRAFT') {
-    try {
-      setSaving(true);
-      setErr(null);
-      const res = await fetch(`/api/events/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Status: status }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Failed to update status');
-      setData(json as ApiEvent);
-
-      // After approve/reject, go back to list, preserving current tab if relevant
-      const curTab = search.get('fromTab') || (status === 'LIVE' ? 'APPROVED' : 'PENDING');
-      router.push(`/auso/event?tab=${curTab}`);
-    } catch (e: any) {
-      setErr(e?.message || 'Error while updating status');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) return <div className="p-6">Loading…</div>;
-  if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
-  if (!data) return <div className="p-6">Event not found.</div>;
-
-  const paidDefault: 'paid' | 'free' = (data.Fee ?? 0) > 0 ? 'paid' : 'free';
-
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
-      <h1 className="text-2xl font-extrabold">Events</h1>
-
-      <form onSubmit={saveFields} className="mt-4 space-y-4">
-        <Row label="Activity Unit">
-          <div className="py-2">Student Council of Theodore Maria School of Arts</div>
-        </Row>
-
-        <Row label="Project Number">
-          <div className="py-2 font-mono">{toProjectNumber(data.EventID)}</div>
-        </Row>
-
-        <Field label="Project Name" name="projectName" defaultValue={data.Title} />
-        <Field label="Organizer Name" name="organizerName" defaultValue={data.OrganizerName ?? ''} />
-        <Field label="Organizer LineID" name="organizerLineId" defaultValue={data.OrganizerLineID ?? ''} />
-        <Field label="Event Venue" name="eventVenue" defaultValue={data.Venue ?? ''} />
-
-        <Row label="Event Date & Time">
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              name="startDate"
-              type="datetime-local"
-              defaultValue={startDefault}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-            />
-            <input
-              name="endDate"
-              type="datetime-local"
-              defaultValue={endDefault}
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-            />
-          </div>
-        </Row>
-
-        <Field
-          label="Maximum Participant No."
-          name="maxParticipants"
-          type="number"
-          min={0}
-          defaultValue={data.MaxParticipant ?? 0}
-        />
-
-        <Row label="Deadline for Participant">
-          <input
-            name="participantDeadline"
-            type="date"
-            defaultValue={data.ParticipantDeadline ? data.ParticipantDeadline.slice(0, 10) : ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-          />
-        </Row>
-
-        <Field
-          label="Maximum Staff No."
-          name="maxStaff"
-          type="number"
-          min={0}
-          defaultValue={data.MaxStaff ?? 0}
-        />
-        <Row label="Deadline for Staff">
-          <input
-            name="staffDeadline"
-            type="date"
-            defaultValue={data.MaxStaffDeadline ? data.MaxStaffDeadline.slice(0, 10) : ''}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-          />
-        </Row>
-
-        <Field
-          label="Scholar Hours for Staff"
-          name="scholarHours"
-          type="number"
-          min={0}
-          defaultValue={data.ScholarshipHours ?? 0}
-        />
-
-        <Row label="Paid or free">
-          <div className="flex items-center gap-6">
-            <label className="flex items-center gap-2">
-              <input type="radio" name="paidFree" defaultChecked={paidDefault === 'paid'} />
-              <span>Paid</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input type="radio" name="paidFree" defaultChecked={paidDefault === 'free'} />
-              <span>Free</span>
-            </label>
-          </div>
-        </Row>
-
-        <Field
-          label="Registration fees"
-          name="registrationFee"
-          type="number"
-          min={0}
-          defaultValue={data.Fee ?? 0}
-        />
-
-        <Row label="Project Description">
-          <textarea
-            name="description"
-            defaultValue={data.Description ?? ''}
-            rows={6}
-            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-          />
-        </Row>
-
-        <Row label="Status">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setStatus('LIVE')}
-              disabled={saving}
-              className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-            >
-              Approve (Live)
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatus('PENDING')}
-              disabled={saving}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Move to Pending
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatus('REJECTED')}
-              disabled={saving}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Reject
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatus('COMPLETE')}
-              disabled={saving}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Mark Complete
-            </button>
-          </div>
-        </Row>
-
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50"
-          >
-            Back
-          </button>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="ml-auto rounded-md bg-zinc-200 px-6 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-300 disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Save'}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+  return out;
 }
 
-/* UI helpers */
-function Row({ label, children }: { label?: string; children: React.ReactNode }) {
-  return (
-    <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
-      <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>
-      <div>{children}</div>
-    </div>
-  );
-}
-function Field({
-  label,
-  name,
-  type = 'text',
-  min,
-  defaultValue,
+export default async function AusoEventPage({
+  params,
 }: {
-  label: string;
-  name: string;
-  type?: string;
-  min?: number;
-  defaultValue?: string | number;
+  params: Promise<{ id: string }>;
 }) {
+  noStore();
+
+  const { id } = await params;
+  const base = getBaseUrl();
+
+  // 1) Fetch event
+  const evRes = await fetch(`${base}/api/events/${id}`, { cache: 'no-store' }).catch(() => null);
+  if (!evRes || !evRes.ok) return notFound();
+  const evText = await evRes.text();
+  const raw: ApiEvent | null = evText ? JSON.parse(evText) : null;
+  if (!raw) return notFound();
+
+  const poster =
+    raw.PosterURL ??
+    raw.PhotoURL ??
+    raw.imageUrl ??
+    raw.posterurl ??
+    raw.photourl ??
+    raw.photo_url ??
+    null;
+
+  const galleryFromArrays: string[] = uniqNonEmpty([
+    ...(Array.isArray(raw?.Photos) ? raw!.Photos! : []),
+    ...(Array.isArray(raw?.Gallery) ? raw!.Gallery! : []),
+    ...(
+      Array.isArray(raw?.PostURLs)
+        ? raw!.PostURLs!.map((x) => (typeof x === 'string' ? x : (x?.PostURL ?? '')))
+        : []
+    ),
+  ]);
+
+  let galleryFromEndpoint: string[] = [];
+  try {
+    const gRes = await fetch(`${base}/api/events/${id}/photos`, { cache: 'no-store' });
+    if (gRes.ok) {
+      const t = await gRes.text();
+      if (t) {
+        const j = JSON.parse(t) as { items?: string[] } | string[];
+        const items = Array.isArray(j) ? j : Array.isArray(j.items) ? j.items : [];
+        galleryFromEndpoint = uniqNonEmpty(items);
+      }
+    }
+  } catch {}
+
+  const gallery = uniqNonEmpty([poster, ...galleryFromArrays, ...galleryFromEndpoint]);
+
+  const ev = {
+    id: raw.EventID ?? raw.id ?? null,
+    title: (raw.Title ?? raw.title ?? 'Untitled Event') || 'Untitled Event',
+    description: raw.Description ?? raw.description ?? '',
+    imageUrl: poster,
+    start: raw.StartDateTime ?? raw.startDate ?? null,
+    end: raw.EndDateTime ?? raw.endDate ?? null,
+    fee: raw.Fee ?? null,
+    venue: raw.Venue ?? raw.venue ?? null,
+
+    maxStaff: raw.MaxStaff ?? (typeof raw.maxstaff === 'number' ? raw.maxstaff : null),
+    maxParticipants:
+      raw.MaxParticipant ?? (typeof raw.maxparticipant === 'number' ? raw.maxparticipant : null),
+
+    scholarshipHours:
+      raw.ScholarshipHours ??
+      (typeof raw.scholarshiphours === 'number' ? raw.scholarshiphours : null),
+
+    organizerName:
+      raw.OrganizerName ?? (typeof raw.organizername === 'string' ? raw.organizername : null),
+
+    organizerLineId:
+      raw.OrganizerLineID ??
+      (typeof raw.organizerlineid === 'string' ? raw.organizerlineid : null),
+    lineGroupUrl: raw.LineGpURL ?? (typeof raw.linegpurl === 'string' ? raw.linegpurl : null),
+    lineGroupQr: raw.LineGpQRCode ?? (typeof raw.linegpqrcode === 'string' ? raw.linegpqrcode : null),
+
+    bankName: raw.BankName ?? null,
+    bankAccountNo: raw.BankAccountNo ?? null,
+    bankAccountName: raw.BankAccountName ?? null,
+    promptPayQr: raw.PromptPayQR ?? null,
+
+    gallery,
+  };
+
+  if (!ev.id) return notFound();
+  const eventId = String(ev.id);
+
+  // (optional) counts
+  let regs: ApiRegs = { staff: [], participants: [] };
+  try {
+    const r = await fetch(`${base}/api/events/${eventId}/registrations`, { cache: 'no-store' });
+    const t = await r.text();
+    if (r.ok && t) {
+      const j = JSON.parse(t);
+      if (Array.isArray(j?.staff) && Array.isArray(j?.participants)) regs = j as ApiRegs;
+    }
+  } catch {}
+
+  const registeredStaff = regs.staff.length;
+  const registeredParticipants = regs.participants.length;
+  const openStaffSlots =
+    ev.maxStaff == null ? null : Math.max(0, Number(ev.maxStaff) - registeredStaff);
+  const openParticipantSlots =
+    ev.maxParticipants == null ? null : Math.max(0, Number(ev.maxParticipants) - registeredParticipants);
+
+  const dateText = formatRange(ev.start, ev.end);
+
   return (
-    <Row label={label}>
-      <input
-        name={name}
-        type={type}
-        min={min}
-        defaultValue={defaultValue as any}
-        className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-      />
-    </Row>
+    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+      {/* Poster FIRST (above caption/title) */}
+      {ev.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={ev.imageUrl}
+          alt={ev.title}
+          loading="lazy"
+          className="w-full max-w-4xl rounded-xl object-cover mx-auto"
+        />
+      )}
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <h1 className="text-3xl font-extrabold">{ev.title}</h1>
+          {dateText && <p className="mt-1 text-sm text-zinc-600">{dateText}</p>}
+          {ev.venue && <p className="mt-1 text-sm text-zinc-600">Venue: {ev.venue}</p>}
+          {typeof ev.fee === 'number' && (
+            <p className="mt-1 text-sm text-zinc-600">
+              Registration Fee: {Number(ev.fee).toLocaleString()} THB
+            </p>
+          )}
+          {typeof ev.scholarshipHours === 'number' && ev.scholarshipHours > 0 && (
+            <p className="mt-1 text-sm font-semibold text-zinc-800">
+              Scholarship hours – {ev.scholarshipHours} {ev.scholarshipHours === 1 ? 'hour' : 'hours'}
+            </p>
+          )}
+          {ev.organizerName && (
+            <p className="mt-1 text-sm text-zinc-700">Organizer: <span className="font-medium">{ev.organizerName}</span></p>
+          )}
+          {/* Note: AUSO page can show LINE/Payment or not—keeping it minimal like public */}
+        </div>
+
+        <div className="md:col-span-1">
+          <div className="mt-1">
+            <RegisterButtons
+              eventId={eventId}
+              openStaff={openStaffSlots}
+              openParticipants={openParticipantSlots}
+            />
+          </div>
+
+          <div className="mt-5 text-base font-semibold">
+            <div>Registered Staff: {registeredStaff}</div>
+            <div>Open Staff Slot: {openStaffSlots == null ? 'Unlimited' : openStaffSlots}</div>
+
+            <div className="mt-4">Registered Participant: {registeredParticipants}</div>
+            <div>Open Participant Slot: {openParticipantSlots == null ? 'Unlimited' : openParticipantSlots}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2">
+          {ev.description && (
+            <div className="whitespace-pre-line text-[15px] leading-7 text-zinc-800">
+              {ev.description}
+            </div>
+          )}
+        </div>
+        <div className="md:col-span-1" />
+      </div>
+
+      {ev.gallery.length > (ev.imageUrl ? 1 : 0) && (
+        <section className="mt-2">
+          <h2 className="mb-3 text-lg font-semibold">Photos</h2>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
+            {ev.gallery
+              .filter((u, idx) => !(idx === 0 && u === ev.imageUrl))
+              .map((url, i) => (
+                <div key={`${url}-${i}`} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={url}
+                    alt={`Photo ${i + 1}`}
+                    loading="lazy"
+                    className="aspect-[16/10] h-full w-full object-cover"
+                  />
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }

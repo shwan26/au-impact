@@ -1,136 +1,178 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { useCart } from "@/hooks/useCart";
-import { useCheckout } from "@/hooks/useCheckout";
+import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useCart } from '@/hooks/useCart';
+import { useCheckout } from '@/hooks/useCheckout';
+import { supabase } from '@/lib/supabaseClient';
+import type { CartItem } from '@/types/db';
 
-/** Local minimal shape to avoid project type coupling */
-type LineItem = {
-  itemId: string;
-  title: string;
-  image: string;
-  size?: string;
-  color?: string;
-  qty?: number;
-  price?: number;
-};
-
-const isLineItem = (x: any): x is LineItem =>
-  x && typeof x.itemId === "string" && typeof x.title === "string" && typeof x.image === "string";
-
-const keyOf = (i: LineItem) => `${i.itemId}-${i.size ?? ""}-${i.color ?? ""}`;
+const keyOf = (i: CartItem) => `${i.itemId}-${i.size}-${i.color}`;
 
 export default function CheckoutPage() {
-  // ---- read whole cart store once (no selectors)
-  const cartStore: any = useCart();
-  const cartItems: LineItem[] = Array.isArray(cartStore?.items)
-    ? cartStore.items.filter(isLineItem)
+  const { items: cartItemsRaw, total: cartTotal } = useCart();
+const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
+
+
+  const selItemsRaw = useCheckout((s) => s.items);
+  const singleItem = useCheckout((s) => s.item);
+  const selItems: CartItem[] = Array.isArray(selItemsRaw)
+    ? selItemsRaw
+    : singleItem
+    ? [singleItem]
     : [];
-  const cartTotal: number = typeof cartStore?.total === "number" ? cartStore.total : 0;
-
-  // ---- checkout store (array or single)
-  const checkoutStore: any = useCheckout();
-  const selItemsRaw = checkoutStore?.items;
-  const selItemRaw = checkoutStore?.item;
-
-  const selectedArray: LineItem[] = Array.isArray(selItemsRaw)
-    ? selItemsRaw.filter(isLineItem)
-    : [];
-  const selectedSingle: LineItem[] = isLineItem(selItemRaw) ? [selItemRaw] : [];
-
-  // Prefer explicit selection; else fallback to cart
-  const lineItems: LineItem[] = useMemo(
-    () => (selectedArray.length ? selectedArray : selectedSingle.length ? selectedSingle : cartItems),
-    [selectedArray, selectedSingle, cartItems]
-  );
 
   const router = useRouter();
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState<string>('');
+  const [slipFile, setSlipFile] = useState<File | null>(null);
 
-  // Buyer info
-  const [buyerName, setBuyerName] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [lineId, setLineId] = useState("");
+  // Buyer info state
+  const [buyerName, setBuyerName] = useState('');
+  const [studentId, setStudentId] = useState('');
+  const [lineId, setLineId] = useState('');
 
-  // Prefill buyer info
+  // Prefill from sessionStorage if user comes back
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem("pp:buyerInfo");
-      if (!raw) return;
-      const saved = JSON.parse(raw) as { buyerName?: string; studentId?: string; lineId?: string };
-      if (saved.buyerName) setBuyerName(saved.buyerName);
-      if (saved.studentId) setStudentId(saved.studentId);
-      if (saved.lineId) setLineId(saved.lineId);
+      const raw = sessionStorage.getItem('pp:buyerInfo');
+      if (raw) {
+        const saved = JSON.parse(raw) as {
+          buyerName?: string;
+          studentId?: string;
+          lineId?: string;
+        };
+        if (saved.buyerName) setBuyerName(saved.buyerName);
+        if (saved.studentId) setStudentId(saved.studentId);
+        if (saved.lineId) setLineId(saved.lineId);
+      }
     } catch {
-      /* ignore */
+      // ignore
     }
   }, []);
 
-  const computedTotal = useMemo(() => {
-    const fromLines =
-      lineItems.reduce(
-        (sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 0),
-        0
-      ) || 0;
-    return fromLines || cartTotal;
-  }, [lineItems, cartTotal]);
+  const isSelectionMode = selItems.length > 0;
+  const candidate = isSelectionMode ? selItems : cartItems;
+  const lineItems: CartItem[] = Array.isArray(candidate) ? candidate : [];
 
-  function handleConfirm() {
-    if (!lineItems.length) {
-      alert("Cart is empty.");
+  const computedTotal =
+    lineItems.reduce(
+      (sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 0),
+      0
+    ) || cartTotal;
+
+  async function handleConfirm() {
+    if (!Array.isArray(lineItems) || lineItems.length === 0) {
+      alert('Cart is empty.');
       return;
     }
+
     if (!buyerName.trim() || !studentId.trim() || !lineId.trim()) {
-      alert("Please fill your Name, Student ID, and LINE ID.");
+      alert('Please fill your Name, Student ID, and LINE ID.');
       return;
     }
+
+    let slipUrl: string | null = null;
+
     try {
+      if (slipFile) {
+        const fileExt = slipFile.name.split('.').pop();
+        const filePath = `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('order-slips')
+          .upload(filePath, slipFile);
+
+        if (uploadError) {
+          alert('❌ Failed to upload slip: ' + uploadError.message);
+          return;
+        }
+
+        // Get a public URL (or signed URL if bucket is private)
+        const { data: publicUrlData } = supabase.storage
+          .from('order-slips')
+          .getPublicUrl(filePath);
+
+        slipUrl = publicUrlData?.publicUrl ?? null;
+      }
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId,
+          fullName: buyerName,
+          lineId,
+          totalAmount: computedTotal,
+          slipUpload: slipUrl,
+          items: lineItems,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert('❌ Failed to create order: ' + (data.error || 'Unknown error'));
+        return;
+      }
+
+      // Save locally for UX
       const purchasedKeys = lineItems.map(keyOf);
-      sessionStorage.setItem("pp:lastPurchased", JSON.stringify(purchasedKeys));
-      sessionStorage.setItem("pp:buyerInfo", JSON.stringify({ buyerName, studentId, lineId }));
-    } catch {
-      /* ignore */
+      sessionStorage.setItem('pp:lastPurchased', JSON.stringify(purchasedKeys));
+      sessionStorage.setItem(
+        'pp:buyerInfo',
+        JSON.stringify({ buyerName, studentId, lineId })
+      );
+
+      router.push('/public/merchandise/checkout/success');
+    } catch (err) {
+      console.error(err);
+      alert('❌ Something went wrong while placing the order.');
     }
-    router.push("/public/merchandise/checkout/success");
   }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold">Merchandise - Checkout</h1>
 
-      {!lineItems.length ? (
+      {lineItems.length === 0 ? (
         <div className="rounded-xl border p-6 text-center text-sm text-gray-600">
-          Nothing to checkout.{" "}
+          Nothing to checkout.{' '}
           <Link className="underline" href="/public/merchandise/cart">
             Go back to cart
           </Link>
         </div>
       ) : (
         lineItems.map((i) => (
-          <div key={keyOf(i)} className="mb-4 flex items-center gap-4 rounded-xl border p-4">
+          <div
+            key={keyOf(i)}
+            className="mb-4 flex items-center gap-4 rounded-xl border p-4"
+          >
             <div className="relative h-24 w-24 overflow-hidden rounded-lg bg-gray-100">
               <Image src={i.image} alt={i.title} fill className="object-cover" />
             </div>
             <div className="flex-1">
               <div className="text-lg font-semibold">{i.title}</div>
-              <div className="text-sm text-gray-600">Size - {i.size || "-"}</div>
-              <div className="text-sm text-gray-600">Color - {i.color || "-"}</div>
+              {i.size && <div className="text-sm text-gray-600">Size - {i.size}</div>}
+              {i.color && <div className="text-sm text-gray-600">Color - {i.color}</div>}
               <div className="mt-1 font-medium">
                 {(Number(i.price) || 0) * (Number(i.qty) || 0)} Baht
               </div>
             </div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-gray-500">Qty</span>
-              <span className="px-2">{i.qty ?? 0}</span>
+              <span className="px-2">{i.qty}</span>
             </div>
           </div>
         ))
       )}
 
-      <h2 className="mt-8 text-xl font-semibold">Total - {computedTotal} Baht</h2>
+      <h2 className="mt-8 text-xl font-semibold">
+        Total - {computedTotal} Baht
+      </h2>
 
       {/* Buyer info */}
       <section className="mt-6 rounded-xl p-4">
@@ -208,20 +250,33 @@ export default function CheckoutPage() {
               className="hidden"
               accept="image/*,.pdf"
               onChange={(e) => {
-                const f = e.target.files?.[0];
-                setFileName(f ? f.name : "");
+                if (e.target.files && e.target.files.length > 0) {
+                  setSlipFile(e.target.files[0]);
+                  setFileName(e.target.files[0].name);
+                } else {
+                  setSlipFile(null);
+                  setFileName('');
+                }
               }}
             />
-            <span className="text-sm text-gray-500">{fileName || "No file chosen"}</span>
+            <span className="text-sm text-gray-500">
+              {fileName || 'No file chosen'}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="mt-8 flex justify-between">
-        <Link href="/public/merchandise/cart" className="rounded-full border px-5 py-2">
+        <Link
+          href="/public/merchandise/cart"
+          className="rounded-full border px-5 py-2"
+        >
           Back
         </Link>
-        <button onClick={handleConfirm} className="rounded-full bg-black px-5 py-2 text-white">
+        <button
+          onClick={handleConfirm}
+          className="rounded-full bg-black px-5 py-2 text-white"
+        >
           Confirm
         </button>
       </div>

@@ -1,3 +1,4 @@
+// app/public/event/[id]/register/staff/page.tsx
 'use client';
 
 import React, { use, useEffect, useState } from 'react';
@@ -7,18 +8,13 @@ import { useRouter } from 'next/navigation';
 
 type ApiEvent = { EventID?: string | number | null; Title?: string | null };
 
-export default function StaffRegisterPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function StaffRegisterPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
 
   const [title, setTitle] = useState<string>('Loading…');
   const [exists, setExists] = useState<boolean>(true);
 
-  // NEW: dynamic bits from event
   const [scholarHours, setScholarHours] = useState<number | null>(null);
   const [orgLineId, setOrgLineId] = useState<string | null>(null);
   const [lineUrl, setLineUrl] = useState<string | null>(null);
@@ -34,22 +30,21 @@ export default function StaffRegisterPage({
         const ev: ApiEvent = JSON.parse(text);
 
         if (!cancelled) {
-          setTitle((ev.Title ?? '').trim() || 'Untitled Event');
-          setExists(!!(ev.EventID ?? ev));
+          setTitle(((ev as any)?.Title ?? '').trim() || 'Untitled Event');
+          setExists(!!((ev as any)?.EventID ?? ev));
 
-          // Pull optional fields (tolerate different casings/keys from API)
           const anyEv = ev as any;
-          const hrs = Number(anyEv?.ScholarshipHours ?? anyEv?.scholarshiphours ?? anyEv?.scholar_hours);
+          const hrs = Number(anyEv?.ScholarshipHours ?? anyEv?.scholarshiphours);
           setScholarHours(Number.isFinite(hrs) ? hrs : null);
 
-          setOrgLineId(
-            (anyEv?.OrganizerLineID ?? anyEv?.organizerlineid ?? anyEv?.organizer_line_id ?? '') || null
-          );
+          setOrgLineId((anyEv?.OrganizerLineID ?? anyEv?.organizerlineid ?? '') || null);
+
+          // Staff-specific group first, fallback to generic
           setLineUrl(
-            (anyEv?.LineGpURL ?? anyEv?.linegpurl ?? anyEv?.line_gp_url ?? '') || null
+            (anyEv?.LineGpURL_Staff ?? anyEv?.linegpurl_staff ?? anyEv?.LineGpURL ?? anyEv?.linegpurl ?? '') || null
           );
           setQrUrl(
-            (anyEv?.LineGpQRCode ?? anyEv?.linegpqrcode ?? anyEv?.line_gp_qr_code ?? '') || null
+            (anyEv?.LineGpQRCode_Staff ?? anyEv?.linegpqrcode_staff ?? anyEv?.LineGpQRCode ?? anyEv?.linegpqrcode ?? '') || null
           );
         }
       } catch {
@@ -66,12 +61,7 @@ export default function StaffRegisterPage({
     return (
       <div className="mx-auto max-w-3xl px-4 py-6">
         <h1 className="text-2xl font-bold">Event not found</h1>
-        <button
-          onClick={() => router.push(`/public/event/${id}`)}
-          className="mt-4 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm hover:bg-zinc-50"
-        >
-          Back to event
-        </button>
+        <button onClick={() => router.push(`/public/event/${id}`)} className="mt-4 rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm hover:bg-zinc-50">Back to event</button>
       </div>
     );
   }
@@ -134,12 +124,10 @@ export default function StaffRegisterPage({
       <h1 className="text-3xl font-extrabold">Register as Staff</h1>
       <p className="mt-2 text-sm text-zinc-600">Event: <span className="font-semibold">{title}</span></p>
 
-      {/* Scholarship hours – dynamic (fallback to 5 like your original) */}
       <div className="pt-2 text-lg font-semibold">
         Scholarship hours – {Number.isFinite(scholarHours ?? NaN) ? scholarHours : 5} hours
       </div>
 
-      {/* Optional: Organizer LINE ID if SAU provided it */}
       {orgLineId && (
         <div className="pt-1 text-sm">
           Organizer LINE ID — <span className="font-medium">{orgLineId}</span>
@@ -163,9 +151,9 @@ export default function StaffRegisterPage({
           </div>
         )}
 
-        {/* Keep wording; just swap link & QR dynamically with fallbacks */}
+        {/* LINE group for STAFF */}
         <div className="pt-2 text-sm">
-          Please join the LINE group for further information
+          Please join the STAFF LINE group for further information
           <br />
           LINE –{' '}
           <Link href={finalLine} className="text-blue-600 underline" target="_blank" rel="noopener noreferrer">
@@ -176,31 +164,14 @@ export default function StaffRegisterPage({
         <div className="mt-4">
           {qrUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrUrl}
-              alt="Line QR"
-              width={192}
-              height={192}
-              className="rounded-md border object-contain"
-            />
+            <img src={qrUrl} alt="Line QR" width={192} height={192} className="rounded-md border object-contain" />
           ) : (
-            <Image
-              src="/images/line-qr.png"
-              alt="Line QR"
-              width={192}
-              height={192}
-              className="rounded-md border object-contain"
-              priority
-            />
+            <Image src="/images/line-qr.png" alt="Line QR" width={192} height={192} className="rounded-md border object-contain" priority />
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={submitting}
-          aria-busy={submitting}
-          className="mt-6 rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} aria-busy={submitting}
+          className="mt-6 rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-60">
           {submitting ? 'Submitting…' : 'Submit'}
         </button>
       </form>
@@ -208,26 +179,11 @@ export default function StaffRegisterPage({
   );
 }
 
-function Field({
-  label,
-  name,
-  type = 'text',
-  required = false,
-}: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-}) {
+function Field({ label, name, type = 'text', required = false }: { label: string; name: string; type?: string; required?: boolean; }) {
   return (
     <label className="block text-sm">
       {label}
-      <input
-        name={name}
-        type={type}
-        required={required}
-        className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-      />
+      <input name={name} type={type} required={required} className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
     </label>
   );
 }

@@ -1,8 +1,9 @@
-// types/db.ts
 export type ID = string;
 
+/* ---------- Shared Status for Events/Fundraising/Announcements ---------- */
 export type Status = 'PENDING' | 'LIVE' | 'COMPLETE';
 
+/* ---------- Events ---------- */
 export type Event = {
   id: ID;
   title: string;
@@ -22,9 +23,9 @@ export type Event = {
   endDate?: string;    // ISO
   registeredStaff?: number;
   registeredParticipants?: number;
-
 };
 
+/* ---------- Fundraising ---------- */
 export type Fundraising = {
   [x: string]: any;
   id: ID;
@@ -37,31 +38,32 @@ export type Fundraising = {
   imageUrl?: string;
 };
 
-// types/db.ts
+/* ---------- Merchandise ---------- */
 export type MerchImage = {
   alt: string;
   url: string;
 };
 
 export type MerchColor = {
-  code: string;     // e.g. 'white', 'navy'
-  name: string;     // 'White', 'Navy'
+  code: string;      // e.g. 'white', 'navy'
+  name: string;      // 'White', 'Navy'
   thumbnail: string; // small image url
 };
 
 export type MerchSize = 'XS'|'S'|'M'|'L'|'XL'|'2XL'|'3XL';
 
 export type Merch = {
-  itemId: string;         // ItemID
-  slug: string;           // for routing
+  itemId: string;       // ItemID
+  slug: string;         // for routing
   title: string;
   description?: string;
-  price: number;          // Price
+  price: number;        // Price
+  status: 'PENDING' | 'APPROVED' | 'SOLD_OUT';  // ✅ added for merch
   availableSizes: MerchSize[];
   availableColors: MerchColor[];
-  pickupPoint?: string;   // PickUpPoint
-  pickupDate?: string;    // e.g. '28 Jan - 14 Feb'
-  pickupTime?: string;    // e.g. '10:30 - 15:00'
+  pickupPoint?: string; // PickUpPoint
+  pickupDate?: string;  // e.g. '28 Jan - 14 Feb'
+  pickupTime?: string;  // e.g. '10:30 - 15:00'
   contactName?: string;
   contactLineId?: string;
   images: {
@@ -73,6 +75,7 @@ export type Merch = {
   };
 };
 
+/* ---------- Cart / Orders ---------- */
 export type CartItem = {
   itemId: string;
   slug: string;
@@ -101,7 +104,7 @@ export type Order = {
   items: OrderItem[];
 };
 
-
+/* ---------- Announcements ---------- */
 export type Announcement = {
   id: string;          // AnnouncementID
   topic: string;       // Topic
@@ -111,5 +114,6 @@ export type Announcement = {
   status: Status;
 };
 
+/* ---------- Auth ---------- */
 export type Role = 'STUDENT' | 'SAU' | 'AUSO';
 export type User = { email: string; role: Role };

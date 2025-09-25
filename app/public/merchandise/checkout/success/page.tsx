@@ -1,40 +1,16 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useRef } from "react";
-import { useCart } from "@/hooks/useCart";
-import { useCheckout } from "@/hooks/useCheckout";
+import Link from 'next/link';
+import { useEffect, useRef } from 'react';
+import { useCart } from '@/hooks/useCart';
+import { useCheckout } from '@/hooks/useCheckout';
+import type { CartItem } from '@/types/db';
 
-/** Local minimal shape */
-type LineItem = {
-  itemId: string;
-  title: string;
-  image: string;
-  size?: string;
-  color?: string;
-  qty?: number;
-  price?: number;
-};
-
-const isLineItem = (x: any): x is LineItem =>
-  x && typeof x.itemId === "string" && typeof x.title === "string" && typeof x.image === "string";
-
-const keyOf = (i: LineItem) => `${i.itemId}-${i.size ?? ""}-${i.color ?? ""}`;
+const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
 
 export default function CheckoutSuccessPage() {
-  // Read whole stores (no selectors)
-  const cartStore: any = useCart();
-  const checkoutStore: any = useCheckout();
-
-  const cartItems: LineItem[] = Array.isArray(cartStore?.items)
-    ? cartStore.items.filter(isLineItem)
-    : [];
-
-  const removeFromCart: ((i: any) => void) | undefined =
-    typeof cartStore?.remove === "function" ? cartStore.remove : undefined;
-
-  const clearSelection: (() => void) | undefined =
-    typeof checkoutStore?.clear === "function" ? checkoutStore.clear : undefined;
+  const { items: cartItems, remove, clear } = useCart();
+  const clearSelection = useCheckout((s) => s.clear);
 
   const ranRef = useRef(false);
 
@@ -45,22 +21,22 @@ export default function CheckoutSuccessPage() {
     clearSelection?.();
 
     try {
-      const raw = sessionStorage.getItem("pp:lastPurchased");
+      const raw = sessionStorage.getItem('pp:lastPurchased');
       const purchasedKeys: unknown = raw ? JSON.parse(raw) : [];
 
       if (Array.isArray(purchasedKeys) && purchasedKeys.length > 0) {
         for (const item of cartItems) {
           if (purchasedKeys.includes(keyOf(item))) {
-            removeFromCart?.(item); // if your store expects id: use removeFromCart?.(item.itemId)
+            remove(item);
           }
         }
       }
 
-      sessionStorage.removeItem("pp:lastPurchased");
+      sessionStorage.removeItem('pp:lastPurchased');
     } catch {
-      /* ignore */
+      // ignore JSON/storage issues
     }
-  }, [cartItems, clearSelection, removeFromCart]);
+  }, [cartItems, clearSelection, remove]);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12 text-center">

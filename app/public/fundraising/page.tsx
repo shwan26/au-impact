@@ -13,27 +13,31 @@ type Item = {
 
 // Resolve an absolute base URL without touching request headers
 function getBaseUrl() {
-  // Vercel-style URL if deployed
   if (process.env.NEXT_PUBLIC_VERCEL_URL) {
     return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
   }
-  // Your own explicit base (optional)
   if (process.env.NEXT_PUBLIC_SITE_URL) {
     return process.env.NEXT_PUBLIC_SITE_URL.replace(/\/+$/, '');
   }
-  // Local dev fallback
   return 'http://localhost:3000';
 }
 
-export default async function PublicFundraisingPage() {
+export default async function PublicFundraisingPage({
+  searchParams,
+}: {
+  searchParams?: { q?: string };
+}) {
   noStore(); // disable caching for fresh data
+  const q = (searchParams?.q ?? '').trim();
 
   const base = getBaseUrl();
-  const url = `${base}/api/fundraising?status=LIVE`;
+  const url = new URL(`${base}/api/fundraising`);
+  url.searchParams.set('status', 'LIVE');
+  if (q) url.searchParams.set('q', q);
 
   let items: Item[] = [];
   try {
-    const res = await fetch(url, { cache: 'no-store', next: { revalidate: 0 } });
+    const res = await fetch(String(url), { cache: 'no-store', next: { revalidate: 0 } });
     if (res.ok) {
       const json = (await res.json()) as { items: Item[]; total?: number };
       items = json.items ?? [];
@@ -44,7 +48,29 @@ export default async function PublicFundraisingPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-      <h1 className="text-2xl font-extrabold">Fundraising</h1>
+      <div className="flex items-end justify-between gap-2 flex-wrap">
+        <h1 className="text-2xl font-extrabold">Fundraising</h1>
+
+        <form method="GET" className="flex items-center gap-2">
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Search project name…"
+            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+          <button className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-300">
+            Search
+          </button>
+          {q && (
+            <a
+              href="/public/fundraising"
+              className="rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
+            >
+              Clear
+            </a>
+          )}
+        </form>
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((f) => (
@@ -73,7 +99,7 @@ export default async function PublicFundraisingPage() {
 
         {!items.length && (
           <div className="col-span-full rounded-md border border-zinc-200 p-6 text-center text-zinc-600">
-            No fundraising projects found.
+            {q ? `No projects match “${q}”.` : 'No fundraising projects found.'}
           </div>
         )}
       </div>

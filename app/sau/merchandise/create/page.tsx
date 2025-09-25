@@ -20,7 +20,7 @@ export default function SAUCreateMerchClothesPage() {
   const router = useRouter();
   const [merchNo, setMerchNo] = useState('');
   const [category, setCategory] = useState<Category>('Clothes');
-  const [special, setSpecial] = useState<'yes'|'no'>('no');
+  const [special, setSpecial] = useState<'yes' | 'no'>('no');
   const [options, setOptions] = useState([{ id: 1 }]);
 
   useEffect(() => setMerchNo(genMerchNumber()), []);
@@ -76,7 +76,7 @@ export default function SAUCreateMerchClothesPage() {
         {/* Size chart – only for Clothes */}
         <Row label="Size Chart">
           <div className="flex flex-wrap gap-4 text-sm">
-            {['XXS','XS','S','M','L','XL','2XL','3XL','4XL'].map((s) => (
+            {['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'].map((s) => (
               <label key={s} className="flex items-center gap-2">
                 <input type="checkbox" name="sizes" value={s} />
                 <span>{s}</span>
@@ -87,7 +87,10 @@ export default function SAUCreateMerchClothesPage() {
 
         {/* Options (photo + caption), add more */}
         {options.map((opt, idx) => (
-          <div key={opt.id} className="space-y-3 rounded-lg border border-zinc-200 p-3">
+          <div
+            key={opt.id}
+            className="space-y-3 rounded-lg border border-zinc-200 p-3"
+          >
             <div className="text-sm font-semibold">Option {idx + 1}</div>
             <UploadRow label="Photo" name={`option_${opt.id}_photo`} />
             <Field label="Caption" name={`option_${opt.id}_caption`} />
@@ -96,7 +99,9 @@ export default function SAUCreateMerchClothesPage() {
         <div>
           <button
             type="button"
-            onClick={() => setOptions((o) => [...o, { id: (o.at(-1)?.id ?? 1) + 1 }])}
+            onClick={() =>
+              setOptions((o) => [...o, { id: (o.at(-1)?.id ?? 1) + 1 }])
+            }
             className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm hover:bg-zinc-50"
           >
             Add Option
@@ -106,11 +111,21 @@ export default function SAUCreateMerchClothesPage() {
         <Row label="Special Price">
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
-              <input type="radio" name="special" checked={special==='yes'} onChange={() => setSpecial('yes')} />
+              <input
+                type="radio"
+                name="special"
+                checked={special === 'yes'}
+                onChange={() => setSpecial('yes')}
+              />
               <span>Yes</span>
             </label>
             <label className="flex items-center gap-2">
-              <input type="radio" name="special" checked={special==='no'} onChange={() => setSpecial('no')} />
+              <input
+                type="radio"
+                name="special"
+                checked={special === 'no'}
+                onChange={() => setSpecial('no')}
+              />
               <span>No</span>
             </label>
           </div>
@@ -154,7 +169,7 @@ export default function SAUCreateMerchClothesPage() {
 }
 
 /* helpers */
-function Row({ label, children }: { label?: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
       <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>
@@ -164,18 +179,31 @@ function Row({ label, children }: { label?: string; children: React.ReactNode })
 }
 
 function Field({
-  label, name, type = 'text', min, disabled, className,
+  label,
+  name,
+  type = 'text',
+  min,
+  disabled,
+  className,
 }: {
-  label: string; name: string; type?: string; min?: number; disabled?: boolean; className?: string;
+  label: string;
+  name: string;
+  type?: string;
+  min?: number;
+  disabled?: boolean;
+  className?: string;
 }) {
   return (
     <Row label={label}>
       <input
+        id={name}
         name={name}
         type={type}
         min={min}
         disabled={disabled}
-        className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${className ?? ''}`}
+        className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${
+          className ?? ''
+        }`}
       />
     </Row>
   );
@@ -184,10 +212,19 @@ function Field({
 function UploadRow({ label, name }: { label: string; name: string }) {
   return (
     <Row label={label}>
-      <label className="flex h-28 w-60 cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-sm hover:bg-zinc-200">
-        <span>＋ Upload .png, .jpg, .jpeg</span>
-        <input type="file" name={name} accept="image/png,image/jpeg" className="hidden" />
+      <label
+        htmlFor={name}
+        className="flex h-28 w-60 cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-sm hover:bg-zinc-200"
+      >
+        ＋ Upload .png, .jpg, .jpeg
       </label>
+      <input
+        id={name}
+        type="file"
+        name={name}
+        accept="image/png,image/jpeg"
+        className="hidden"
+      />
     </Row>
   );
 }

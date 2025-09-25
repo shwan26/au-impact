@@ -69,7 +69,6 @@ export async function POST(
 
   const supabase = getSupabaseServer();
 
-  // 1) Ensure the fundraising exists (optional: require status LIVE)
   const { data: fundRow, error: fundErr } = await supabase
     .from('fundraising')
     .select('fundid, status')
@@ -78,12 +77,7 @@ export async function POST(
 
   if (fundErr) return NextResponse.json({ error: fundErr.message }, { status: 500 });
   if (!fundRow) return NextResponse.json({ error: 'Fundraising not found' }, { status: 404 });
-  // If you want to restrict donations to LIVE only:
-  // if ((fundRow as any).status !== 'LIVE') {
-  //   return NextResponse.json({ error: 'Donations are closed for this campaign' }, { status: 400 });
-  // }
 
-  // 2) Insert donation
   const { data: ins, error: insErr } = await supabase
     .from('donation')
     .insert({
@@ -92,14 +86,12 @@ export async function POST(
       nickname,
       isanonymous,
       slipupload,
-      // submittedat can be a default NOW() at DB level; omit if so
     })
     .select('donationid, amount, nickname, isanonymous, submittedat, slipupload')
     .maybeSingle();
 
   if (insErr) return NextResponse.json({ error: insErr.message }, { status: 500 });
 
-  // 3) Recompute total (robust against race conditions) and store on fundraising
   const { data: agg, error: aggErr } = await supabase
     .from('donation')
     .select('amount')

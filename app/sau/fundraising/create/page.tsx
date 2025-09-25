@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { uploadTo } from '@/lib/uploadClient';
 
 function genFundProjectNumber() {
   const rnd = Math.floor(100000 + Math.random() * 900000);
@@ -11,12 +12,14 @@ function genFundProjectNumber() {
 export default function SAUCreateFundraisingPage() {
   const router = useRouter();
 
-  // Generate project number on the client to avoid hydration mismatch
+  // Project number (UI only)
   const [projectNumber, setProjectNumber] = useState('');
   useEffect(() => setProjectNumber(genFundProjectNumber()), []);
 
+  // Local UI state for uploads
   const [posterFiles, setPosterFiles] = useState<FileList | null>(null);
   const [qrFile, setQrFile] = useState<File | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -28,7 +31,24 @@ export default function SAUCreateFundraisingPage() {
     try {
       const fd = new FormData(e.currentTarget);
 
-      // Map form -> API payload
+      // 1) Optional uploads first (so we have URLs)
+      let imageUrl: string | undefined;
+      let qrUrl: string | undefined;
+
+      // Poster (take the first selected file if any)
+      if (posterFiles?.length) {
+        const first = posterFiles[0];
+        const up = await uploadTo('poster', first, 'fundraising');
+        imageUrl = up.publicUrl; // API will store the path
+      }
+
+      // QR
+      if (qrFile) {
+        const up = await uploadTo('qr', qrFile, 'fundraising');
+        qrUrl = up.publicUrl; // API will store the path
+      }
+
+      // 2) Map form -> API payload
       const payload = {
         title: String(fd.get('projectName') || ''),
         organizerName: String(fd.get('organizerName') || ''),
@@ -38,9 +58,16 @@ export default function SAUCreateFundraisingPage() {
         endDate: String(fd.get('dateTo') || '') || null,
         goal: fd.get('expectedAmount') ? Number(fd.get('expectedAmount')) : null,
         description: String(fd.get('caption') || ''),
-        // This project number is UI only; not stored unless your API supports it.
-        // projectNumber,
         status: 'PENDING' as const,
+
+        // Bank + QR
+        bankBookName: String(fd.get('bankBookName') || ''),
+        bankBookAccount: String(fd.get('bankBookAccount') || ''),
+        bankName: String(fd.get('bankName') || ''),
+        qrUrl: qrUrl ?? '',
+
+        // Poster
+        imageUrl: imageUrl ?? '',
       };
 
       const res = await fetch('/api/fundraising', {
@@ -49,7 +76,7 @@ export default function SAUCreateFundraisingPage() {
         body: JSON.stringify(payload),
       });
 
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Failed to create fundraising');
 
       alert('Fundraising created successfully.');
@@ -90,27 +117,19 @@ export default function SAUCreateFundraisingPage() {
         {/* Dates */}
         <Row label="Event Date From">
           <div className="grid w-full grid-cols-2 items-center gap-3">
-            <input
-              type="date"
-              name="dateFrom"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
-            />
+            <input type="date" name="dateFrom" className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
             <div className="text-center text-sm text-zinc-500">To</div>
-            <input
-              type="date"
-              name="dateTo"
-              className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 col-span-2 sm:col-span-1"
-            />
+            <input type="date" name="dateTo" className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 col-span-2 sm:col-span-1" />
           </div>
         </Row>
 
         <Field label="Expected Money Amount" name="expectedAmount" type="number" min={0} />
 
-        {/* Upload Poster (UI only) */}
+        {/* Poster upload */}
         <Row label="Upload Poster">
           <label className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
-            <span>{posterFiles?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (up to 5 photos)'}</span>
+            <span>{posterFiles?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (1st will be used)'}</span>
             <input
               type="file"
               name="poster"
@@ -119,17 +138,18 @@ export default function SAUCreateFundraisingPage() {
               onChange={(e) => setPosterFiles(e.currentTarget.files)}
               className="hidden"
             />
-            <span className="text-[11px] text-zinc-500">(up to 5 photos)</span>
+            <span className="text-[11px] text-zinc-500">(up to 5 photos, 1st used)</span>
           </label>
         </Row>
 
         <Field label="Write Caption" name="caption" />
 
+        {/* Bank */}
         <Field label="Bank Book Name" name="bankBookName" />
         <Field label="Bank Book Account" name="bankBookAccount" />
         <Field label="Bank Name" name="bankName" />
 
-        {/* PromptPay QR (UI only) */}
+        {/* QR upload */}
         <Row label="PromptPay QR code">
           <label className="flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
@@ -160,13 +180,7 @@ export default function SAUCreateFundraisingPage() {
 
 /* ---------- helpers ---------- */
 
-function Row({
-  label,
-  children,
-}: {
-  label?: string;
-  children: React.ReactNode;
-}) {
+function Row({ label, children }: { label?: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
       <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>
@@ -176,17 +190,9 @@ function Row({
 }
 
 function Field({
-  label,
-  name,
-  type = 'text',
-  required,
-  min,
+  label, name, type = 'text', required, min,
 }: {
-  label: string;
-  name: string;
-  type?: string;
-  required?: boolean;
-  min?: number;
+  label: string; name: string; type?: string; required?: boolean; min?: number;
 }) {
   return (
     <Row label={label}>
