@@ -7,19 +7,22 @@ const teamMembers = [
 ];
 
 const Footer: React.FC = () => (
-  <footer style={{
-    padding: '1rem',
-    background: '#f0f0f0',
-    textAlign: 'center',
-    position: 'fixed',
-    left: 0,
-    bottom: 0,
-    width: '100%',
-  }}>
+  <footer
+    style={{
+      padding: '1rem',
+      background: '#b40000',
+      color: 'white',
+      textAlign: 'center',
+      marginTop: '2rem',
+      width: '100vw',        // full viewport width
+      marginLeft: 'calc(-50vw + 50%)', // center align if parent has max-width
+    }}
+  >
     <div>
-      Team Members: {teamMembers.join(', ')}
+      Developed by {teamMembers.join(', ')}
     </div>
   </footer>
+
 );
 
 export default Footer;
