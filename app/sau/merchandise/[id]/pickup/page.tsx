@@ -8,15 +8,30 @@ import React from 'react';
 
 export default function SAUMerchPickupPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const item = getMerchById(id);
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
+  const [exists, setExists] = useState<boolean | null>(null);
 
-  if (!item) return notFound();
+  useEffect(() => {
+    (async () => {
+      const r = await fetch(`/api/merchandise/${id}`);
+      setExists(r.ok);
+    })();
+  }, [id]);
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  if (exists === null) return <div className="p-4">Loading...</div>;
+  if (!exists) return notFound();
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    alert('Pickup info saved (demo).');
+    const fd = new FormData(e.currentTarget);
+    if (file) fd.set('pickupPhoto', file);
+    const res = await fetch(`/api/merchandise/${id}`, { method: 'PATCH', body: fd });
+    if (!res.ok) {
+      const j = await res.json();
+      alert(j.error || 'Failed to save');
+      return;
+    }
     router.push(`/sau/merchandise/${id}`);
   }
 
@@ -25,10 +40,10 @@ export default function SAUMerchPickupPage({ params }: { params: { id: string } 
       <h1 className="text-2xl font-extrabold">Pickup Location</h1>
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <Row label="Activity Unit">
-          <div className="py-2">Student Council of Theodore Maria School of Arts</div>
+        <Row label="Pickup Location">
+          <input name="pickupLocation" placeholder="e.g., CL 11th Floor"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
         </Row>
-
         <Row label="Merchandise Number">
           <div className="py-2 font-mono">{item.itemId}</div>
           <input type="hidden" name="itemId" value={item.itemId} />
@@ -59,7 +74,6 @@ export default function SAUMerchPickupPage({ params }: { params: { id: string } 
             className="hidden"
           />
         </Row>
-
         <Row label="Pickup Location">
           <input
             name="pickupPoint"
@@ -85,12 +99,8 @@ export default function SAUMerchPickupPage({ params }: { params: { id: string } 
             className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           />
         </Row>
-
         <div className="pt-2">
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300"
-          >
+          <button type="submit" className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300">
             Save
           </button>
         </div>

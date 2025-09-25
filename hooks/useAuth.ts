@@ -1,22 +1,47 @@
+// hooks/useAuth.ts
 'use client';
 import { useEffect, useState } from 'react';
-import { User } from '@/types/db';
+import { createClient } from '@/lib/supabaseClient'; // ✅ change this
 
-export function useAuth(){
-  const [user, setUser] = useState<User | null>(null);
+type Role = 'user' | 'sau' | 'auso';
 
-  useEffect(()=>{
-    try {
-      const raw = localStorage.getItem('au_user');
-      if (raw) setUser(JSON.parse(raw));
-    } catch {}
-  },[]);
+interface AuthUser {
+  id: string;
+  email?: string;
+  role: Role;
+}
 
-  function logout(){
-    localStorage.removeItem('au_user');
-    document.cookie = 'au_role=; expires=Thu, 01 Jan 1970 00:00:01 GMT; path=/';
-    window.location.href = '/public';
-  }
+export function useAuth() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  return { user, logout };
+  useEffect(() => {
+    const supabase = createClient(); // ✅ use createClient()
+
+    // Initial load
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u) {
+        const role = (u.app_metadata?.role as Role) || 'user';
+        setUser({ id: u.id, email: u.email ?? undefined, role });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    // Listen for login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, session) => {
+      const u = session?.user;
+      if (u) {
+        const role = (u.app_metadata?.role as Role) || 'user';
+        setUser({ id: u.id, email: u.email ?? undefined, role });
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return { user, loading };
 }

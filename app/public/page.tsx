@@ -5,6 +5,7 @@ import { events, merches } from '@/lib/mock';
 import type { Event, Merch } from '@/types/db';
 import PosterCard from '@/components/home/PosterCard';
 import MerchCard from '@/components/home/MerchCard';
+import Footer from '@/components/layout/Footer';
 
 type EventWithImage = Event & { imageUrl?: string };
 
@@ -13,7 +14,7 @@ export default function HomePage() {
   const merch = merches as Merch[];
 
   // put your real image under /public/images/home/
-  const CALENDAR_SRC = '/images/home/june-calendar.jpg';
+  const CALENDAR_SRC = '/images/home/sep-calendar.png';
 
   return (
     <>
@@ -22,7 +23,7 @@ export default function HomePage() {
       <main className="mx-auto max-w-6xl space-y-10 px-4 py-8">
         {/* Calendar */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-extrabold">June Calendar</h2>
+          <h2 className="text-2xl font-extrabold">September Calendar</h2>
           <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
             <Image
               src={CALENDAR_SRC}

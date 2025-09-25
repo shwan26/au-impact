@@ -1,13 +1,8 @@
-import PortalLoginForm from '../component/PortLoginForm';
+'use client';
 
-export default function AusoPortalPage() {
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-8 space-y-10">
-      <h2 className="font-sans text-4xl text-black">Auso Portal</h2>
-      <div className="max-w-xl">
-        {/* ⬅️ Goes to /auso and sets role cookie to 'auso' */}
-        <PortalLoginForm redirectTo="/auso" role="auso" />
-      </div>
-    </div>
-  );
+// Make sure the import path is correct and the file exists
+import PortalLoginForm from '@/components/forms/PortalLoginForm';
+
+export default function AUSOPortalLogin() {
+  return <PortalLoginForm role="auso" redirectTo="/auso" />;
 }

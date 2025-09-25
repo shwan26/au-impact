@@ -34,8 +34,18 @@ export default function SAUCreateMerchClothesPage() {
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    alert('Merchandise created!');
-    router.push('/sau/merchandise');
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    fetch('/api/merchandise', { method: 'POST', body: fd })
+      .then(async (r) => {
+        if (!r.ok) throw new Error((await r.json()).error || 'Failed');
+        return r.json();
+      })
+      .then(() => {
+        alert('Merchandise created!');
+        router.push('/sau/merchandise');
+      })
+      .catch((err) => alert(err.message));
   }
 
   return (
@@ -44,6 +54,7 @@ export default function SAUCreateMerchClothesPage() {
 
       <form onSubmit={onSubmit} className="mt-4 space-y-4">
         <Row label="Activity Unit">
+          <input type="hidden" name="sauId" value="1" />
           <div className="py-2">Student Council of Theodore Maria School of Arts</div>
         </Row>
 

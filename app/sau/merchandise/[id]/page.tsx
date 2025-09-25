@@ -1,7 +1,8 @@
-'use client';
+// app/sau/merchandise/[id]/page.tsx
 
 import Image from 'next/image';
 import Link from 'next/link';
+
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Merch } from '@/types/db';
@@ -62,6 +63,7 @@ export default function SAUMerchEditPage({ params }: { params: { id: string } })
       <h1 className="mb-4 text-2xl font-extrabold">Merchandise (SAU)</h1>
 
       <div className="space-y-3">
+
         <Row label="Merchandise Number">
           <div className="font-mono">{merch.ItemID}</div>
         </Row>
@@ -126,12 +128,7 @@ export default function SAUMerchEditPage({ params }: { params: { id: string } })
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
-      <div className={LABEL_COL}>{label}</div>
-      <div>{children}</div>
-    </div>
-  );
+  return <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]"><div className={LABEL_COL}>{label}</div><div>{children}</div></div>;
 }
 
 function Field({

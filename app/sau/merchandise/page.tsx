@@ -1,7 +1,9 @@
+// app/sau/merchandise/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+
 import type { Merch } from '@/types/db';
 
 export default function SAUMerchandisePage() {
@@ -31,10 +33,7 @@ export default function SAUMerchandisePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Merchandise</h1>
-        <Link
-          href="/sau/merchandise/create"
-          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-300"
-        >
+        <Link href="/sau/merchandise/create" className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50">
           + New Merchandise
         </Link>
       </div>
