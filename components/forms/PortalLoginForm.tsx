@@ -1,3 +1,4 @@
+// components/forms/PortalLoginForm.tsx
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,7 @@ import { createClient } from '@/lib/supabaseClient';
 
 export default function PortalLoginForm({
   redirectTo = '/',
-  role = 'user', // 'user' means "any role can log in", used on generic /login
+  role = 'user',
 }: {
   redirectTo?: string;
   role?: 'auso' | 'sau' | 'user';
@@ -20,6 +21,8 @@ export default function PortalLoginForm({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  
+
   const login = async () => {
     setBusy(true);
     setErr(null);
@@ -31,22 +34,24 @@ export default function PortalLoginForm({
       return;
     }
 
-    // Check role
-    const { data: { session } } = await supabase.auth.getSession();
-    const actualRole = (session?.user?.app_metadata as any)?.role ?? 'user';
+    // ✅ fetch fresh user (includes app_metadata.role)
+    const { data: { user } } = await supabase.auth.getUser();
+    const actualRole = (user?.app_metadata as any)?.role ?? 'user';
 
     if (role === 'sau' && actualRole !== 'sau') {
+      await supabase.auth.signOut();
       setErr('This portal is for SAU accounts only. Please use a SAU account.');
       setBusy(false);
       return;
     }
     if (role === 'auso' && actualRole !== 'auso') {
+      await supabase.auth.signOut();
       setErr('This portal is for AUSO accounts only. Please use an AUSO account.');
       setBusy(false);
       return;
     }
 
-    router.push(redirectTo);
+    router.replace(redirectTo); // ✅ prevents back to login
   };
 
   return (
@@ -65,6 +70,7 @@ export default function PortalLoginForm({
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           placeholder="you@au.edu"
+          required
         />
       </label>
 
@@ -76,6 +82,7 @@ export default function PortalLoginForm({
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           placeholder="••••••••"
+          required
         />
       </label>
 
@@ -91,7 +98,6 @@ export default function PortalLoginForm({
           {busy ? 'Logging in…' : 'Login'}
         </button>
 
-        {/* Public self-signup allowed only for normal users */}
         {role === 'user' && (
           <Link
             href="/public/create-account"

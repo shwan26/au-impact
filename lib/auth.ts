@@ -4,7 +4,7 @@ import { createServerClientForServerComponents } from '@/lib/supabaseServer'
 export type Role = 'sau' | 'auso' | 'user'
 
 export async function getSession() {
-  const supabase = createServerClientForServerComponents()
+  const supabase = await createServerClientForServerComponents()
   const { data, error } = await supabase.auth.getUser()
   return { user: data?.user ?? null, error }
 }
