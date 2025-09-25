@@ -1,7 +1,13 @@
 // app/auso/page.tsx
 import Image from 'next/image';
+import { getSessionRole } from '@/lib/auth';
 
-export default function AUSOHome() {
+export default async function AUSOHome() {
+  const role = await getSessionRole();
+  // This page is also protected by middleware; this is a belt-and-suspenders check.
+  if (role !== 'auso') {
+    return <div className="p-6">Forbidden</div>;
+  }
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
       <h1 className="text-3xl font-extrabold">Dashboard</h1>

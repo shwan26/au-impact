@@ -6,8 +6,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
  * Use this in Server Components. It must NOT try to write cookies
  * (Next will throw). Let middleware or route actions do refresh writes.
  */
-export async function createServerClientForServerComponents() {
-  const store = await cookies()
+export function createServerClientForServerComponents() {
+  const store = cookies()
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
