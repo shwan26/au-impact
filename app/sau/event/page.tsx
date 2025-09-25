@@ -1,162 +1,149 @@
+// app/sau/event/page.tsx
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
-import { useJson } from '@/hooks/useJson';
 
-type ApiEvent = {
+type Ev = {
   EventID: string | number | null;
-  Title?: string | null;
-  Description?: string | null;
-  Status?: 'PENDING' | 'APPROVED' | 'LIVE' | 'COMPLETE' | 'REJECTED' | 'DRAFT' | string | null;
-  StartDate?: string | null;
-  EndDate?: string | null;
-  Location?: string | null;
-  PhotoURL?: string | null;
+  Title: string | null;
+  PosterURL?: string | null;
+  StartDateTime?: string | null;
+  EndDateTime?: string | null;
+  Venue?: string | null;
+  Status: string;
 };
-type ApiResponse = { items: ApiEvent[]; total?: number };
 
-const TABS = ['ALL', 'PENDING', 'APPROVED', 'LIVE', 'COMPLETE', 'REJECTED', 'DRAFT'] as const;
-type Tab = typeof TABS[number];
+const TABS = [
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'LIVE', label: 'Live / Approved' },
+  { key: 'DRAFT', label: 'Draft' },
+  { key: 'REJECTED', label: 'Rejected' },
+  { key: 'COMPLETE', label: 'Complete' },
+] as const;
 
-function toStatusTab(s?: ApiEvent['Status']): Tab {
-  const v = String(s || '').toUpperCase() as Tab;
-  return (TABS as readonly string[]).includes(v) ? (v as Tab) : 'ALL';
-}
+export default function SAUEventList() {
+  const [items, setItems] = useState<Ev[]>([]);
+  const [active, setActive] = useState<(typeof TABS)[number]['key']>('PENDING');
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-function toStatusLabel(s?: ApiEvent['Status']) {
-  switch (String(s || '').toUpperCase()) {
-    case 'PENDING': return 'Pending';
-    case 'APPROVED': return 'Approved';
-    case 'LIVE': return 'Live';
-    case 'COMPLETE': return 'Complete';
-    case 'REJECTED': return 'Rejected';
-    case 'DRAFT': return 'Draft';
-    default: return 'Unknown';
+  async function load() {
+    try {
+      setLoading(true);
+      setErr(null);
+      const r = await fetch('/api/events', { cache: 'no-store' });
+      const t = await r.text();
+      const j = t ? JSON.parse(t) : {};
+      setItems(Array.isArray(j.items) ? j.items : []);
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-export default function SAUEventsPage() {
-  // IMPORTANT: fetch ALL; filter locally by tab
-  const { data, loading, error } = useJson<ApiResponse>('/api/events');
-  const [active, setActive] = useState<Tab>('ALL');
+  useEffect(() => { load(); }, []);
 
-  const rows = useMemo(() => {
-    const items = data?.items ?? [];
-    const filtered = active === 'ALL'
-      ? items
-      : items.filter((e) => toStatusTab(e.Status) === active);
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const { key } of TABS) c[key] = 0;
+    for (const it of items) {
+      const st = (it.Status || 'PENDING').toUpperCase();
+      if (c[st] != null) c[st] += 1;
+    }
+    return c;
+  }, [items]);
 
-    return filtered.map((e) => {
-      const id = String(e.EventID ?? '');
-      const digits = id.replace(/\D/g, '').padStart(6, '0') || '000000';
-      const title = (e.Title ?? '').toString().trim() || 'Untitled';
-      return {
-        id,
-        projectNumber: `E${digits}`,
-        name: title,
-        type: 'Event',
-        statusLabel: toStatusLabel(e.Status),
-      };
-    });
-  }, [data, active]);
+  const visible = useMemo(() => {
+    return items.filter((it) => (it.Status || 'PENDING').toUpperCase() === active);
+  }, [items, active]);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-extrabold">Events</h1>
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold">SAU — Events</h1>
         <Link
           href="/sau/event/create"
-          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-300"
+          className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
         >
-          + New Event
+          Create Event
         </Link>
       </div>
 
       {/* Tabs */}
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => {
-          const isActive = t === active;
+          const isActive = active === t.key;
           return (
             <button
-              key={t}
-              onClick={() => setActive(t)}
-              className={`rounded-full px-3 py-1 text-sm border ${
-                isActive
-                  ? 'bg-zinc-900 text-white border-zinc-900'
-                  : 'bg-white text-zinc-900 border-zinc-300 hover:bg-zinc-50'
-              }`}
+              key={t.key}
+              onClick={() => setActive(t.key)}
+              className={[
+                'rounded-full px-3 py-1.5 text-sm border',
+                isActive ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-800 hover:bg-zinc-50 border-zinc-300',
+              ].join(' ')}
             >
-              {t[0] + t.slice(1).toLowerCase()}
+              {t.label}
+              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700">
+                {counts[t.key] ?? 0}
+              </span>
             </button>
           );
         })}
+        <button
+          onClick={load}
+          className="ml-auto rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Loading / error */}
-      {loading && <div className="p-6 text-zinc-600">Loading…</div>}
-      {error && <div className="p-6 text-red-600">Error loading events: {error.message}</div>}
+      {err && <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+      {loading && <div className="mt-4 text-sm">Loading…</div>}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-zinc-300">
-        <table className="w-full border-collapse text-sm">
-          <thead className="bg-zinc-50 text-zinc-800">
-            <tr className="border-b border-zinc-300">
-              {['Project Number', 'Project Name', 'Type', 'Status', ''].map((h, i) => (
-                <th
-                  key={h}
-                  className={`px-4 py-3 text-left font-semibold border-r border-zinc-300 ${
-                    i === 4 ? 'w-1/6 text-right' : ''
-                  } last:border-r-0`}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-zinc-900">
-            {rows.map((r) => (
-              <tr key={r.id || crypto.randomUUID()} className="border-b border-zinc-300 last:border-b-0">
-                <td className="px-4 py-3 border-r border-zinc-300">{r.projectNumber}</td>
-                <td className="px-4 py-3 border-r border-zinc-300">
-                  <Link href={`/sau/event/${r.id}`} className="underline decoration-zinc-400 hover:text-zinc-900">
-                    {r.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3 border-r border-zinc-300">{r.type}</td>
-                <td className="px-4 py-3 border-r border-zinc-300">{r.statusLabel}</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="inline-flex gap-2">
+      {/* Visible list (only the active status) */}
+      <div className="mt-4">
+        {visible.length === 0 ? (
+          <div className="rounded-md border border-zinc-200 p-4 text-sm text-zinc-600">No events.</div>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visible.map((e) => (
+              <li key={String(e.EventID)} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                {e.PosterURL ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.PosterURL} alt={e.Title ?? ''} className="aspect-[16/9] w-full object-cover" />
+                ) : (
+                  <div className="aspect-[16/9] w-full bg-zinc-100" />
+                )}
+                <div className="p-3">
+                  <div className="truncate text-sm font-semibold">{e.Title ?? 'Untitled Event'}</div>
+                  <div className="mt-2 flex items-center gap-2">
                     <Link
-                      href={`/sau/event/${r.id}`}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs hover:bg-zinc-50"
+                      href={`/public/event/${e.EventID}`}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
+                    >
+                      Public
+                    </Link>
+                    <Link
+                      href={`/sau/event/${e.EventID}`}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
                     >
                       Edit
                     </Link>
                     <Link
-                      href={`/sau/event/${r.id}/participants`}
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs hover:bg-zinc-50"
+                      href={`/sau/event/${e.EventID}/participants`}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
                     >
-                      Participants/Staff
+                      Check Regs
                     </Link>
                   </div>
-                </td>
-              </tr>
+                </div>
+              </li>
             ))}
-            {!rows.length && (
-              <tr>
-                <td className="px-4 py-6 text-center text-zinc-500" colSpan={5}>
-                  No events in this tab.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+          </ul>
+        )}
       </div>
-
-      {/* Optional: total count */}
-      {/* {data?.total && <div className="text-xs text-zinc-500">Total events: {data.total}</div>} */}
     </div>
   );
 }

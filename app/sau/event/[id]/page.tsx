@@ -23,8 +23,8 @@ type ApiEvent = {
 
   Status?: string;
 
+  // NEW
   ScholarshipHours?: number | null;
-  OrganizerName?: string | null;
   OrganizerLineID?: string | null;
   LineGpURL?: string | null;
   LineGpQRCode?: string | null;
@@ -189,6 +189,7 @@ export default function SAUEventEditPage() {
     const bankAccountName = String(fd.get('bankAccountName') ?? '').trim() || null;
     const promptPayQr = String(fd.get('promptPayQr') ?? '').trim() || data.promptPayQr || null;
 
+    // Front-end validation for paid events
     if (isPaid) {
       if (!bankAccountNo && !promptPayQr) {
         setErr('For paid events, fill Bank Account No. OR provide a PromptPay QR.');
@@ -267,6 +268,32 @@ export default function SAUEventEditPage() {
     }
   }
 
+  // ✅ NEW: Mark as COMPLETE
+  async function markComplete() {
+    if (!data) return;
+    if (!confirm('Mark this event as COMPLETE? This will close registration and move it to the Complete tab.')) return;
+
+    try {
+      setSaving(true);
+      setErr(null);
+      const res = await fetch(`/api/events/${data.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: 'COMPLETE' }),
+      });
+      const txt = await res.text();
+      const j = txt ? JSON.parse(txt) : null;
+      if (!res.ok || !j) throw new Error(j?.error || 'Failed to update status');
+
+      setData((prev) => prev ? { ...prev, status: 'COMPLETE' } : prev);
+      alert('Marked as COMPLETE.');
+    } catch (e: any) {
+      setErr(e?.message || 'Error updating status');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   // Photos upload
   async function onUploadPhotos() {
     if (!data) return;
@@ -298,7 +325,7 @@ export default function SAUEventEditPage() {
     }
   }
 
-  // PromptPay QR upload
+  // PromptPay QR upload (like fundraising)
   async function onUploadQR(file: File) {
     if (!data) return;
     try {
@@ -538,6 +565,18 @@ export default function SAUEventEditPage() {
           >
             Participant/Staff List
           </Link>
+
+          {/* ✅ NEW: complete button */}
+          {data.status !== 'COMPLETE' && (
+            <button
+              type="button"
+              onClick={markComplete}
+              disabled={saving}
+              className="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+            >
+              Mark as Complete
+            </button>
+          )}
 
           <button
             type="submit"

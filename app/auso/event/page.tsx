@@ -1,163 +1,132 @@
+// app/auso/event/page.tsx
 'use client';
 
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { useJson } from '@/hooks/useJson';
 
-/** API shape (PascalCase from your /api/events route) */
-type ApiItem = {
-  EventID: number;
-  Title: string;
-  Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | 'REJECTED' | 'DRAFT' | 'UNKNOWN' | string;
-  StartDateTime?: string | null; // if your API includes it
+type Ev = {
+  EventID: string | number | null;
+  Title: string | null;
+  PosterURL?: string | null;
+  Status: string;
 };
 
-type ApiShape = { items: ApiItem[] };
-
 const TABS = [
-  { key: 'PENDING', label: 'Pending', query: { status: 'PENDING' } },
-  { key: 'APPROVED', label: 'Approved', query: { statuses: 'LIVE,COMPLETE' } }, // composite filter
-  { key: 'LIVE', label: 'Live', query: { status: 'LIVE' } },
-  { key: 'COMPLETE', label: 'Complete', query: { status: 'COMPLETE' } },
-  { key: 'REJECTED', label: 'Rejected', query: { status: 'REJECTED' } },
-  { key: 'DRAFT', label: 'Draft', query: { status: 'DRAFT' } },
-  { key: 'ALL', label: 'All', query: {} },
-];
+  { key: 'PENDING', label: 'Pending' },
+  { key: 'LIVE', label: 'Live / Approved' },
+  { key: 'DRAFT', label: 'Draft' },
+  { key: 'REJECTED', label: 'Rejected' },
+  { key: 'COMPLETE', label: 'Complete' },
+] as const;
 
-function toProjectNumber(id: number | string) {
-  const digits = String(id).replace(/\D/g, '').padStart(6, '0') || '000000';
-  return `E${digits}`;
-}
+export default function AUSOEventList() {
+  const [items, setItems] = useState<Ev[]>([]);
+  const [active, setActive] = useState<(typeof TABS)[number]['key']>('PENDING');
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-function toStatusLabel(s?: ApiItem['Status']) {
-  switch ((s ?? '').toUpperCase()) {
-    case 'PENDING':
-      return 'Pending';
-    case 'LIVE':
-      return 'Live';
-    case 'COMPLETE':
-      return 'Complete';
-    case 'REJECTED':
-      return 'Rejected';
-    case 'DRAFT':
-      return 'Draft';
-    case 'UNKNOWN':
-      return 'Unknown';
-    default:
-      return 'Unknown';
+  async function load() {
+    try {
+      setLoading(true);
+      setErr(null);
+      const r = await fetch('/api/events', { cache: 'no-store' });
+      const t = await r.text();
+      const j = t ? JSON.parse(t) : {};
+      setItems(Array.isArray(j.items) ? j.items : []);
+    } catch (e: any) {
+      setErr(e?.message || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-function buildEventsUrl(tabKey: string) {
-  const found = TABS.find((t) => t.key === tabKey) ?? TABS[0];
-  const sp = new URLSearchParams();
-  if (found.query.status) sp.set('status', found.query.status);
-  if (found.query.statuses) sp.set('statuses', found.query.statuses);
-  return `/api/events${sp.toString() ? `?${sp.toString()}` : ''}`;
-}
+  useEffect(() => { load(); }, []);
 
-export default function AUSOEventsPage() {
-  const search = useSearchParams();
-  const router = useRouter();
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const { key } of TABS) c[key] = 0;
+    for (const it of items) {
+      const st = (it.Status || 'PENDING').toUpperCase();
+      if (c[st] != null) c[st] += 1;
+    }
+    return c;
+  }, [items]);
 
-  const activeTab = (search.get('tab') || 'PENDING').toUpperCase();
-  const dataUrl = buildEventsUrl(activeTab);
-
-  // Pull from your API route (which talks to Supabase)
-  const { data, loading, error } = useJson<ApiShape>(dataUrl);
-
-  // Normalize for UI
-  const items = useMemo(
-    () =>
-      (data?.items ?? []).map((e) => ({
-        id: String(e.EventID),
-        title: e.Title ?? 'Untitled',
-        status: e.Status,
-      })),
-    [data]
-  );
+  const visible = useMemo(() => {
+    return items.filter((it) => (it.Status || 'PENDING').toUpperCase() === active);
+  }, [items, active]);
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-extrabold">Events</h1>
+    <div className="mx-auto max-w-6xl px-4 py-6">
+      <h1 className="text-2xl font-extrabold">AUSO — Events</h1>
 
       {/* Tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         {TABS.map((t) => {
-          const isActive = t.key === activeTab;
-          const href = (() => {
-            const sp = new URLSearchParams(search.toString());
-            sp.set('tab', t.key);
-            return `/auso/event?${sp.toString()}`;
-          })();
-        return (
-          <Link
-            key={t.key}
-            href={href}
-            className={`rounded-full px-3 py-1 text-sm font-medium border ${
-              isActive
-                ? 'bg-zinc-900 text-white border-zinc-900'
-                : 'bg-white text-zinc-900 border-zinc-300 hover:bg-zinc-50'
-            }`}
-            prefetch={false}
-          >
-            {t.label}
-          </Link>
-        );})}
+          const isActive = active === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => setActive(t.key)}
+              className={[
+                'rounded-full px-3 py-1.5 text-sm border',
+                isActive ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-white text-zinc-800 hover:bg-zinc-50 border-zinc-300',
+              ].join(' ')}
+            >
+              {t.label}
+              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] text-zinc-700">
+                {counts[t.key] ?? 0}
+              </span>
+            </button>
+          );
+        })}
+        <button
+          onClick={load}
+          className="ml-auto rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+        >
+          Refresh
+        </button>
       </div>
 
-      {/* Body */}
-      {loading ? (
-        <div className="p-6 text-zinc-600">Loading…</div>
-      ) : error ? (
-        <div className="p-6 text-red-600">Error loading events: {error.message}</div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-zinc-300">
-          <table className="w-full border-collapse text-sm">
-            <thead className="bg-zinc-50 text-zinc-800">
-              <tr className="border-b border-zinc-300">
-                {['Project Number', 'Project Name', 'Type', 'Status'].map((h) => (
-                  <th
-                    key={h}
-                    className="px-4 py-3 text-left font-semibold border-r border-zinc-300 last:border-r-0"
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+      {err && <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+      {loading && <div className="mt-4 text-sm">Loading…</div>}
 
-            <tbody className="text-zinc-900">
-              {items.map((e) => (
-                <tr key={e.id} className="border-b border-zinc-300 last:border-b-0">
-                  <td className="px-4 py-3 border-r border-zinc-300">
-                    {toProjectNumber(e.id)}
-                  </td>
-                  <td className="px-4 py-3 border-r border-zinc-300">
+      {/* Visible list (only the active status) */}
+      <div className="mt-4">
+        {visible.length === 0 ? (
+          <div className="rounded-md border border-zinc-200 p-4 text-sm text-zinc-600">No events.</div>
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {visible.map((e) => (
+              <li key={String(e.EventID)} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
+                {e.PosterURL ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.PosterURL} alt={e.Title ?? ''} className="aspect-[16/9] w-full object-cover" />
+                ) : (
+                  <div className="aspect-[16/9] w-full bg-zinc-100" />
+                )}
+                <div className="p-3">
+                  <div className="truncate text-sm font-semibold">{e.Title ?? 'Untitled Event'}</div>
+                  <div className="mt-2 flex items-center gap-2">
                     <Link
-                      href={`/auso/event/${e.id}`}
-                      className="font-medium text-zinc-900 underline-offset-2 hover:underline"
+                      href={`/auso/event/${e.EventID}`}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
                     >
-                      {e.title}
+                      Review
                     </Link>
-                  </td>
-                  <td className="px-4 py-3 border-r border-zinc-300">Event</td>
-                  <td className="px-4 py-3">{toStatusLabel(e.status)}</td>
-                </tr>
-              ))}
-
-              {!items.length && (
-                <tr>
-                  <td className="px-4 py-6 text-center text-zinc-500" colSpan={4}>
-                    No events found{activeTab !== 'ALL' ? ` for ${TABS.find(t=>t.key===activeTab)?.label}` : ''}.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    <Link
+                      href={`/public/event/${e.EventID}`}
+                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs hover:bg-zinc-50"
+                    >
+                      Public
+                    </Link>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -9,86 +9,48 @@ const TABLE = 'event';
 const FIELDS = '*';
 
 function mapRow(r: any) {
-  if (!r) return null;
   return {
     EventID: r.eventid ?? r.id ?? null,
     Title: r.title ?? 'Untitled Event',
     Description: r.description ?? null,
     Venue: r.venue ?? null,
+
     StartDateTime: r.startdatetime ?? null,
     EndDateTime: r.enddatetime ?? null,
-    Fee: r.fee ?? null,
+
+    Fee: typeof r.fee === 'number' ? r.fee : (r.fee == null ? null : Number(r.fee)),
+
+    // status + owners
+    Status: (r.status ?? 'PENDING').toString().toUpperCase(),
+    SAU_ID: r.sau_id ?? null,
+    AUSO_ID: r.auso_id ?? null,
+
+    // poster for list card
+    PosterURL: r.posterurl ?? null,
+
+    // capacities
     MaxParticipant: r.maxparticipant ?? null,
-    ParticipantDeadline: r.participantdeadline ?? null,
     MaxStaff: r.maxstaff ?? null,
-    MaxStaffDeadline: r.maxstaffdeadline ?? null,
-    ScholarshipHours: r.scholarshiphours ?? null,
-    OrganizerName: r.organizername ?? null,
-    OrganizerLineID: r.organizerlineid ?? null,
-    LineGpURL: r.linegpurl ?? null,
-    LineGpQRCode: r.linegpqrcode ?? null,
-    BankName: r.bankname ?? null,
-    BankAccountNo: r.bankaccountno ?? null,
-    BankAccountName: r.bankaccountname ?? null,
-    PromptPayQR: r.promptpayqr ?? null,
-    Status: r.status ?? null,
-    PosterURL: null, // placeholder if you add poster storage
+
+    CreatedAt: r.created_at ?? r.createdAt ?? null,
   };
 }
 
-// GET /api/events → return list
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const supabase = getSupabaseServer();
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select(FIELDS)
-      .order('startdatetime', { ascending: false });
+    const url = new URL(req.url);
+    const status = (url.searchParams.get('status') || '').trim().toUpperCase();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-    const items = (data ?? []).map(mapRow).filter(Boolean);
+    const supabase = getSupabaseServer();
+    let q = supabase.from(TABLE).select(FIELDS).order('startdatetime', { ascending: true });
+
+    if (status) q = q.eq('status', status);
+
+    const { data, error } = await q;
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    const items = (data ?? []).map(mapRow);
     return NextResponse.json({ items });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
-  }
-}
-
-// POST /api/events → create new
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const row: Record<string, any> = {
-      title: body.Title ?? null,
-      description: body.Description ?? null,
-      venue: body.Location ?? body.Venue ?? null,
-      startdatetime: body.StartDateTime ?? body.StartDate ?? null,
-      enddatetime: body.EndDateTime ?? body.EndDate ?? null,
-      fee: body.Fee ?? null,
-      maxparticipant: body.MaxParticipant ?? null,
-      participantdeadline: body.ParticipantDeadline ?? null,
-      maxstaff: body.MaxStaff ?? null,
-      maxstaffdeadline: body.MaxStaffDeadline ?? null,
-      scholarshiphours: body.ScholarshipHours ?? null,
-      organizername: body.OrganizerName ?? null,
-      organizerlineid: body.OrganizerLineID ?? null,
-      linegpurl: body.LineGpURL ?? null,
-      linegpqrcode: body.LineGpQRCode ?? null,
-      bankname: body.BankName ?? null,
-      bankaccountno: body.BankAccountNo ?? null,
-      bankaccountname: body.BankAccountName ?? null,
-      promptpayqr: body.PromptPayQR ?? null,
-      status: body.Status ?? 'PENDING',
-    };
-
-    const supabase = getSupabaseServer();
-    const { data, error } = await supabase.from(TABLE).insert(row).select(FIELDS).single();
-
-    if (error || !data) {
-      return NextResponse.json({ error: error?.message || 'Insert failed' }, { status: 400 });
-    }
-    return NextResponse.json(mapRow(data));
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
   }

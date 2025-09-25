@@ -48,8 +48,10 @@ function mapRow(r: any) {
     AUSO_ID: r.auso_id ?? null,
     Status: r.status ?? null,
 
-    // No poster column on Event
-    PosterURL: null,
+    // ✅ new: poster goes out as PosterURL (public page prefers this)
+    PosterURL: r.posterurl ?? null,
+    // keep PhotoURL fallback if you later add it
+    PhotoURL: r.photourl ?? null,
   };
 }
 
