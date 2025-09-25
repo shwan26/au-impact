@@ -1,31 +1,47 @@
+// hooks/useAuth.ts
 'use client';
 import { useEffect, useState } from 'react';
-import { supabaseBrowser } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabaseClient'; // ✅ change this
 
+type Role = 'user' | 'sau' | 'auso';
+
+interface AuthUser {
+  id: string;
+  email?: string;
+  role: Role;
+}
 
 export function useAuth() {
-  const [user, setUser] = useState<null | { id: string; email?: string; role?: string }>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-
   useEffect(() => {
-    const supabase = supabaseBrowser();
-    supabase.auth.getUser().then(({ data }) => {
-      const u = data.user;
-      setUser(u ? { id: u.id, email: u.email ?? undefined, role: (u.app_metadata?.role as string) || 'user' } : null);
+    const supabase = createClient(); // ✅ use createClient()
+
+    // Initial load
+    supabase.auth.getUser().then(({ data: { user: u } }) => {
+      if (u) {
+        const role = (u.app_metadata?.role as Role) || 'user';
+        setUser({ id: u.id, email: u.email ?? undefined, role });
+      } else {
+        setUser(null);
+      }
       setLoading(false);
-  });
+    });
 
+    // Listen for login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_evt, session) => {
+      const u = session?.user;
+      if (u) {
+        const role = (u.app_metadata?.role as Role) || 'user';
+        setUser({ id: u.id, email: u.email ?? undefined, role });
+      } else {
+        setUser(null);
+      }
+    });
 
-  const { data: sub } = supabase.auth.onAuthStateChange((_evt, session) => {
-    const u = session?.user;
-    setUser(u ? { id: u.id, email: u.email ?? undefined, role: (u?.app_metadata?.role as string) || 'user' } : null);
-  });
-
-
-    return () => { sub.subscription?.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, []);
-
 
   return { user, loading };
 }
