@@ -1,4 +1,5 @@
 'use client';
+import { errMsg } from '@/lib/errors';
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -41,8 +42,8 @@ export default function SAUNewAnnouncementPage() {
       alert(status === 'PENDING' ? 'Submitted for review.' : 'Saved as draft.');
       router.push('/sau/announcements');
       router.refresh();
-    } catch (e: any) {
-      setErr(e?.message || 'Create error');
+    } catch (e: unknown) {
+      setErr(errMsg(e) || 'Create error');
     } finally {
       setSaving(false);
     }

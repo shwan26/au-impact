@@ -1,4 +1,3 @@
-// app/api/announcements/route.ts
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
@@ -8,10 +7,30 @@ const TABLE = 'announcement';
 const FIELDS =
   'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
 
-const ALLOWED_STATUS = new Set(['DRAFT', 'PENDING', 'LIVE', 'COMPLETE']);
+type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
 
-// DB -> API (PascalCase)
-function mapRow(r: any) {
+interface AnnouncementDBRow {
+  announcementid: number;
+  topic: string;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string;
+  status: Status;
+  sau_id: number | null;
+  auso_id: number | null;
+}
+interface AnnouncementAPI {
+  AnnouncementID: number;
+  Topic: string;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string;
+  Status: Status;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
+}
+
+function toApi(r: AnnouncementDBRow): AnnouncementAPI {
   return {
     AnnouncementID: r.announcementid,
     Topic: r.topic,
@@ -23,73 +42,74 @@ function mapRow(r: any) {
     AUSO_ID: r.auso_id ?? null,
   };
 }
+function msg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
 
 export async function GET(req: Request) {
   try {
-    const supabase = getSupabaseServer();
-    const { searchParams } = new URL(req.url);
-
-    const status = searchParams.get('status') || undefined;
-    const page = Math.max(1, Number(searchParams.get('page') || '1'));
-    const pageSize = Math.max(1, Number(searchParams.get('pageSize') || '9'));
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') || '1');
+    const pageSize = Number(url.searchParams.get('pageSize') || '20');
+    const status = url.searchParams.get('status');
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let q = supabase
+    const supabase = getSupabaseServer();
+
+    let query = supabase
       .from(TABLE)
       .select(FIELDS, { count: 'exact' })
-      // ✅ newest first so fresh SAU submissions appear immediately
-      .order('announcementid', { ascending: false });
+      .order('announcementid', { ascending: false })
+      .returns<AnnouncementDBRow[]>();
 
-    if (status) {
-      if (!ALLOWED_STATUS.has(status)) {
-        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-      }
-      q = q.eq('status', status);
-    }
+    if (status) query = query.eq('status', status);
 
-    const { data, error, count } = await q.range(from, to);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data, error, count } = await query.range(from, to);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    const items = (data ?? []).map(mapRow);
-
-    return NextResponse.json({ page, pageSize, total: count ?? 0, items });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
+    return NextResponse.json({
+      items: (data ?? []).map(toApi),
+      total: count ?? 0,
+      page,
+      pageSize,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Internal error' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const supabase = getSupabaseServer();
-    const body = await req.json();
+    const body = (await req.json()) as unknown as Partial<{
+      Topic: string;
+      Description: string | null;
+      PhotoURL: string | null;
+      Status: Status;
+      SAU_ID: number | null;
+      AUSO_ID: number | null;
+    }>;
 
-    const payload: Record<string, any> = {
-      topic: (body?.Topic ?? '').trim(),
-      description: body?.Description ?? null,
-      photourl: body?.PhotoURL ?? null,
-      status: body?.Status ?? 'DRAFT',
-      sau_id: body?.SAU_ID ?? null,
-      auso_id: body?.AUSO_ID ?? null,
+    const payload: Record<string, unknown> = {
+      topic: (body.Topic ?? '').toString(),
+      description: body.Description ?? null,
+      photourl: body.PhotoURL ?? null,
+      status: body.Status ?? 'DRAFT',
+      sau_id: body.SAU_ID ?? null,
+      auso_id: body.AUSO_ID ?? null,
     };
 
-    if (!payload.topic) {
-      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
-    }
-    if (!ALLOWED_STATUS.has(payload.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
+    const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from(TABLE)
       .insert(payload)
       .select(FIELDS)
+      .returns<AnnouncementDBRow>()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-
-    return NextResponse.json(mapRow(data), { status: 201 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+    return NextResponse.json(toApi(data));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Bad request' }, { status: 400 });
   }
 }

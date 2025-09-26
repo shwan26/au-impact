@@ -1,4 +1,5 @@
 'use client';
+import { errMsg } from '@/lib/errors';
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -42,8 +43,8 @@ export default function SAUAnnouncementsPage() {
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || 'Failed to load announcements');
         if (!killed) setItems(Array.isArray(json.items) ? json.items : []);
-      } catch (e: any) {
-        if (!killed) setErr(e?.message || 'Error loading announcements');
+      } catch (e: unknown) {
+        if (!killed) setErr(errMsg(e) || 'Error loading announcements');
       } finally {
         if (!killed) setLoading(false);
       }

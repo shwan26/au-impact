@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element */
 // app/public/fundraising/[id]/page.tsx
 import { notFound } from 'next/navigation';
 import { unstable_noStore as noStore } from 'next/cache';

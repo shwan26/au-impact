@@ -1,4 +1,6 @@
 'use client';
+import type React from 'react';
+import { errMsg } from '@/lib/errors';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -82,8 +84,8 @@ export default function SAUEditAnnouncementPage() {
           setDescription(mapped.description ?? '');
           setPhotoUrl(mapped.photoUrl ?? '');
         }
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || 'Error loading announcement');
+      } catch (e: unknown) {
+        if (!cancelled) setErr(errMsg(e) || 'Error loading announcement');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -122,8 +124,8 @@ export default function SAUEditAnnouncementPage() {
       setDescription(updated.description ?? '');
       setPhotoUrl(updated.photoUrl ?? '');
       alert(newStatus === 'PENDING' ? 'Submitted for review.' : 'Saved as draft.');
-    } catch (e: any) {
-      setErr(e?.message || 'Update error');
+    } catch (e: unknown) {
+      setErr(errMsg(e) || 'Update error');
     } finally {
       setSaving(false);
     }
@@ -227,7 +229,7 @@ export default function SAUEditAnnouncementPage() {
                   setItem((prev) => (prev ? { ...prev, photoUrl: updated.PhotoURL ?? null } : prev));
                   // clear file input
                   e.currentTarget.value = '';
-                } catch (err: any) {
+                } catch (err: unknown) {
                   alert(err?.message || 'Upload failed');
                 } finally {
                   setUploading(false);
@@ -240,6 +242,7 @@ export default function SAUEditAnnouncementPage() {
 
             {photoUrl && (
               <div className="mt-2 overflow-hidden rounded border border-zinc-200">
+/* eslint-disable-next-line @next/next/no-img-element */
                 <img src={photoUrl} alt="Announcement photo" className="h-auto w-full object-cover" />
               </div>
             )}

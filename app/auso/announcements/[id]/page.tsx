@@ -1,4 +1,5 @@
 'use client';
+import { errMsg } from '@/lib/errors';
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -61,8 +62,8 @@ export default function AUSOAnnouncementEditPage() {
         const json = text ? (JSON.parse(text) as ApiRow) : null;
         if (!json) throw new Error('Not found');
         if (!cancelled) setItem(fromApi(json));
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || 'Error loading');
+      } catch (e: unknown) {
+        if (!cancelled) setErr(errMsg(e) || 'Error loading');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -93,8 +94,8 @@ export default function AUSOAnnouncementEditPage() {
       if (!json) throw new Error('Invalid response');
       setItem(fromApi(json));
       alert(newStatus === 'LIVE' ? 'Approved (LIVE)' : 'Marked PENDING');
-    } catch (e: any) {
-      setErr(e?.message || 'Update error');
+    } catch (e: unknown) {
+      setErr(errMsg(e) || 'Update error');
     } finally {
       setSaving(false);
     }

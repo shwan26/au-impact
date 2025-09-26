@@ -1,4 +1,5 @@
 'use client';
+import { errMsg } from '@/lib/errors';
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -59,8 +60,8 @@ export default function CreateAnnouncementPage() {
       // Go to the AUSO detail editor for this new announcement
       router.push(`/auso/announcements/${id}`);
       router.refresh();
-    } catch (e: any) {
-      setErr(e?.message || 'Create failed');
+    } catch (e: unknown) {
+      setErr(errMsg(e) || 'Create failed');
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,5 @@
 'use client';
+import { errMsg } from '@/lib/errors';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -64,8 +65,8 @@ export default function AUSOAnnouncementsPage() {
         const json = text ? JSON.parse(text) : { items: [] };
         const arr = Array.isArray(json.items) ? (json.items as ApiRow[]) : [];
         if (!cancelled) setItems(arr.map(fromApi));
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || 'Failed to load announcements');
+      } catch (e: unknown) {
+        if (!cancelled) setErr(errMsg(e) || 'Failed to load announcements');
       } finally {
         if (!cancelled) setLoading(false);
       }

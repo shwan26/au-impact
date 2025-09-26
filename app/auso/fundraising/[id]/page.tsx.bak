@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/auso/fundraising/[id]/page.tsx
 'use client';
 
