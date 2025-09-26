@@ -1,101 +1,60 @@
 // app/api/uploads/[kind]/route.ts
-import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
-const POSTER_BUCKET = process.env.NEXT_PUBLIC_POSTER_BUCKET ?? 'posters';
-const QR_BUCKET     = process.env.NEXT_PUBLIC_QR_BUCKET ?? 'qr';
-const SLIP_BUCKET   = process.env.NEXT_PUBLIC_SLIP_BUCKET ?? 'slips';
+const POSTER_BUCKET = process.env.NEXT_PUBLIC_POSTER_BUCKET ?? 'posters'
+const QR_BUCKET     = process.env.NEXT_PUBLIC_QR_BUCKET ?? 'qr'
+const SLIP_BUCKET   = process.env.NEXT_PUBLIC_SLIP_BUCKET ?? 'slips'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-function newAdmin() {
-  return createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+function admin() {
+  return createClient(SUPABASE_URL, SERVICE_KEY, {
+    auth: { persistSession: false },
+    global: { headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` } },
+  })
 }
 
-function bucketFor(kind: string): string | null {
-  switch (kind) {
-    case 'poster': return POSTER_BUCKET;
-    case 'qr':     return QR_BUCKET;
-    case 'slip':   return SLIP_BUCKET;
-    default:       return null;
-  }
+function bucketFor(kind: string) {
+  return kind === 'poster' ? POSTER_BUCKET
+       : kind === 'qr'     ? QR_BUCKET
+       : kind === 'slip'   ? SLIP_BUCKET
+       : null
 }
 
-function sanitizeFilename(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]+/g, '-');
-}
+function normalize(name: string) { return name.replace(/[^a-zA-Z0-9._-]+/g, '-') }
 
-async function ensureBucket(supabase: ReturnType<typeof newAdmin>, name: string) {
-  // list buckets and create if missing
-  const { data: list, error: listErr } = await supabase.storage.listBuckets();
-  if (listErr) throw new Error(listErr.message);
-
-  const exists = (list || []).some(b => b.name === name);
-  if (exists) return;
-
-  const { error: createErr } = await supabase.storage.createBucket(name, {
-    public: true, // we build public URL directly
-    fileSizeLimit: '20MB',
-  });
-  if (createErr) throw new Error(createErr.message);
-}
-
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<{ kind: string }> }
-) {
+export async function POST(req: Request, ctx: { params: Promise<{ kind: string }> }) {
   try {
-    const { kind } = await ctx.params;
-    const bucket = bucketFor(kind);
-    if (!bucket) return NextResponse.json({ error: 'Unknown upload kind' }, { status: 400 });
+    const { kind } = await ctx.params
+    const bucket = bucketFor(kind)
+    if (!bucket) return NextResponse.json({ error: `Unknown kind "${kind}"` }, { status: 400 })
 
-    const form = await req.formData().catch(() => null);
-    if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
+    const form = await req.formData().catch(() => null)
+    if (!form) return NextResponse.json({ error: 'Invalid form data' }, { status: 400 })
 
-    const file = form.get('file');
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: 'file is required' }, { status: 400 });
-    }
+    const file = form.get('file')
+    if (!(file instanceof File)) return NextResponse.json({ error: 'file is required' }, { status: 400 })
 
-    const prefix = String(form.get('prefix') ?? '').trim();
-    const origName = sanitizeFilename(file.name || 'upload.bin');
-    const ts = Date.now();
-    const rand = Math.random().toString(36).slice(2, 8);
-    const path = [prefix, `${ts}-${rand}-${origName}`].filter(Boolean).join('/');
+    const prefix = String(form.get('prefix') ?? '').trim().replace(/^\/+|\/+$/g, '')
+    const path = [prefix, `${Date.now()}-${Math.random().toString(36).slice(2,8)}-${normalize(file.name || 'upload.bin')}`]
+      .filter(Boolean).join('/')
 
-    const supabase = newAdmin();
+    const supabase = admin()
+    const { error: upErr } = await supabase.storage.from(bucket).upload(path, file, {
+      contentType: file.type || 'application/octet-stream',
+      upsert: false,
+    })
+    if (upErr) return NextResponse.json({ error: `upload: ${upErr.message}` }, { status: 500 })
 
-    // Ensure bucket exists (creates if missing)
-    await ensureBucket(supabase, bucket);
-
-    // Upload
-    const { error: upErr } = await supabase.storage
-      .from(bucket)
-      .upload(path, file, {
-        contentType: file.type || 'application/octet-stream',
-        upsert: false,
-      });
-
-    if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 500 });
-    }
-
-    // Public URL (bucket must be public)
-    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
-
-    return NextResponse.json({
-      bucket,
-      path,
-      publicUrl,
-      size: file.size,
-      mime: file.type || 'application/octet-stream',
-      name: origName,
-    });
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`
+    return NextResponse.json({ bucket, path, publicUrl, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 500 });
+    console.error('UPLOAD ROUTE ERROR:', e)
+    return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 500 })
   }
 }

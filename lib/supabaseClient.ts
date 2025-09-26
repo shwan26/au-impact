@@ -8,13 +8,10 @@ let browserClient: SupabaseClient | null = null;
 export function createClient(): SupabaseClient {
   if (browserClient) return browserClient;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-  // Fail fast if envs are missing (prevents silent “No API key found”)
   if (!url || !key) {
-    // Surface a clear message in the browser (useful during dev)
-    // You can swap this to console.error + throw if you prefer.
     throw new Error(
       'Supabase env not set. Define NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local (and restart dev server).'
     );
@@ -25,12 +22,18 @@ export function createClient(): SupabaseClient {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      // Ensure storage is defined only in the browser
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
-    // Optional: tag requests so you can spot them in logs
     global: {
-      headers: { 'x-client-info': 'portal-web' },
+      // ✅ explicitly include the required headers
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'x-client-info': 'portal-web',
+      },
+      // (Optional) If you ever add a custom fetch, make sure you KEEP headers:
+      // fetch: async (u, opts = {}) =>
+      //   fetch(u, { ...opts, headers: { ...(opts.headers || {}) } }),
     },
   });
 

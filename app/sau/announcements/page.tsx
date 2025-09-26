@@ -38,7 +38,7 @@ export default function SAUAnnouncementsPage() {
       setErr(null);
       try {
         // Grab up to 100 most recent announcements.
-        const res = await fetch('/api/announcements?page=1&pageSize=100', { cache: 'no-store' });
+        const res = await fetch('/api/announcements?page=1&pageSize=100', { cache: 'no-store' , credentials: 'include'});
         const json = await res.json();
         if (!res.ok) throw new Error(json?.error || 'Failed to load announcements');
         if (!killed) setItems(Array.isArray(json.items) ? json.items : []);

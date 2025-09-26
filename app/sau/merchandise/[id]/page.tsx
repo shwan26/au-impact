@@ -1,8 +1,8 @@
 // app/sau/merchandise/[id]/page.tsx
+'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
-
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { Merch } from '@/types/db';
@@ -15,15 +15,17 @@ export default function SAUMerchEditPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let alive = true;
     (async () => {
-      const res = await fetch(`/api/merchandise/${params.id}`, { cache: 'no-store' });
-      if (!res.ok) {
-        setMerch(null);
-      } else {
-        setMerch(await res.json());
+      try {
+        const res = await fetch(`/api/merchandise/${params.id}`, { cache: 'no-store' });
+        const data = res.ok ? await res.json() : null;
+        if (alive) setMerch(data);
+      } finally {
+        if (alive) setLoading(false);
       }
-      setLoading(false);
     })();
+    return () => { alive = false; };
   }, [params.id]);
 
   async function handleSave() {
@@ -59,11 +61,10 @@ export default function SAUMerchEditPage({ params }: { params: { id: string } })
   if (!merch) return <div className="p-4">Not found</div>;
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-6">
+    <main>
       <h1 className="mb-4 text-2xl font-extrabold">Merchandise (SAU)</h1>
 
       <div className="space-y-3">
-
         <Row label="Merchandise Number">
           <div className="font-mono">{merch.ItemID}</div>
         </Row>
@@ -128,7 +129,12 @@ export default function SAUMerchEditPage({ params }: { params: { id: string } })
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]"><div className={LABEL_COL}>{label}</div><div>{children}</div></div>;
+  return (
+    <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
+      <div className={LABEL_COL}>{label}</div>
+      <div>{children}</div>
+    </div>
+  );
 }
 
 function Field({

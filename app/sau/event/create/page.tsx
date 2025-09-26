@@ -129,6 +129,7 @@ export default function SAUCreateEventPage() {
       const res = await fetch('/api/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',      
         body: JSON.stringify(payload),
       });
       const json = await res.json().catch(() => ({}));

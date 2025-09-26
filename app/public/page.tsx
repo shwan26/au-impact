@@ -6,6 +6,7 @@ import type { Event, Merch } from '@/types/db';
 import PosterCard from '@/components/home/PosterCard';
 import MerchCard from '@/components/home/MerchCard';
 import Footer from '@/components/layout/Footer';
+import SupabaseEnvDebug from '@/lib/supabaseEnvDebug';
 
 type EventWithImage = Event & { imageUrl?: string };
 
@@ -21,6 +22,7 @@ export default function HomePage() {
 
       {/* Page content */}
       <main className="mx-auto max-w-6xl space-y-10 px-4 py-8">
+        {/* <SupabaseEnvDebug /> */}
         {/* Calendar */}
         <section className="space-y-4">
           <h2 className="text-2xl font-extrabold">September Calendar</h2>

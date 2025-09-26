@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { createClient } from '@/lib/supabaseClient'; // browser client
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -14,30 +15,65 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 export default function SAUNewAnnouncementPage() {
   const router = useRouter();
+  const supabase = createClient();
+
   const [topic, setTopic] = useState('');
   const [description, setDescription] = useState('');
   const [photourl, setPhotourl] = useState('');
+  const [sauName, setSauName] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  // Load SAU name directly from Supabase
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch('/api/me', { credentials: 'include' }); // include cookies
+        const { user } = await res.json();
+        if (!alive) return;
+        setSauName(user?.org?.sau?.Name ?? null); // shows SAU name if linked
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => { alive = false; };
+  }, [supabase]);
 
   async function submit(status: 'DRAFT' | 'PENDING') {
     try {
       setSaving(true);
       setErr(null);
+
+      const trimmed = topic.trim();
+      if (!trimmed) {
+        setErr('Topic is required');
+        setSaving(false);
+        return;
+      }
+
       const res = await fetch('/api/announcements', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' }, 
+        credentials: 'include',      
         body: JSON.stringify({
-          Topic: topic,
+          Topic: trimmed,
           Description: description || null,
           PhotoURL: photourl || null,
-          Status: status, // ✅ matches DB check constraint
-          SAU_ID: null,
-          AUSO_ID: null,
+          Status: status,
         }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || 'Create failed');
+
+      // Safely parse response (handles 405/empty body)
+      const text = await res.text();
+      const json = text ? (() => { try { return JSON.parse(text); } catch { return null; } })() : null;
+
+      if (!res.ok) {
+        const msg = (json && (json.error || json.message)) || `Request failed (${res.status})`;
+        throw new Error(msg);
+      }
+
       alert(status === 'PENDING' ? 'Submitted for review.' : 'Saved as draft.');
       router.push('/sau/announcements');
       router.refresh();
@@ -55,7 +91,7 @@ export default function SAUNewAnnouncementPage() {
       {err && <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">{err}</div>}
 
       <Row label="Activity Unit">
-        <div className="py-2">Student Council of Theodore Maria School of Arts</div>
+        <div className="py-2">{sauName ?? '—'}</div>
       </Row>
 
       <Row label="Announcement Topic">
@@ -64,6 +100,7 @@ export default function SAUNewAnnouncementPage() {
           onChange={(e) => setTopic(e.target.value)}
           className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           placeholder="Topic"
+          required
         />
       </Row>
 
@@ -83,6 +120,7 @@ export default function SAUNewAnnouncementPage() {
           onChange={(e) => setPhotourl(e.target.value)}
           className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
           placeholder="https://…"
+          inputMode="url"
         />
       </Row>
 
