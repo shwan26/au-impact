@@ -2,13 +2,11 @@
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabaseClient';
+import { getSupabaseServer } from '@/lib/supabaseServer';
 
-const TABLE = 'announcement';
-const FIELDS =
-  'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
 
-// CHANGE if your Storage bucket name is different (e.g., 'images')
+const TABLE  = 'Announcement';
+const FIELDS = '"AnnouncementID","Topic","Description","PhotoURL","DatePosted","Status","SAU_ID","AUSO_ID"';
 const BUCKET = 'public';
 
 // ---- helpers ---------------------------------------------------------------
@@ -78,7 +76,7 @@ export async function POST(
       return NextResponse.json({ error: 'Unsupported image type' }, { status: 400 });
     }
 
-    const supabase = getSupabaseServer();
+    const supabase = await getSupabaseServer();
 
     // Convert to Buffer
     const ab = await file.arrayBuffer();
