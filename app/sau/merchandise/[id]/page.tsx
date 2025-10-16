@@ -136,13 +136,6 @@ export default function SAUMerchEditPage() {
       <h1 className="text-2xl font-extrabold">Merchandise</h1>
 
       <div className="mt-4 space-y-4">
-        <Row label="Activity Unit">
-          <div className="py-2">Student Council of Theodore Maria School of Arts</div>
-        </Row>
-
-        <Row label="Merchandise Number">
-          <div className="py-2 font-mono">{displayNo}</div>
-        </Row>
 
         <Field
           label="Merchandise Name"

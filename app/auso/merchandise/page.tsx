@@ -47,12 +47,7 @@ export default function AUSOMerchandisePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Merchandise</h1>
-        <Link
-          href="/auso/merchandise/create"
-          className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-zinc-300"
-        >
-          + New Merchandise
-        </Link>
+        
       </div>
 
       {/* Error */}
@@ -102,15 +97,7 @@ export default function AUSOMerchandisePage() {
                 </tr>
               )}
             </tbody>
-            {total > 0 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={3} className="px-4 py-2 text-right text-xs text-zinc-500">
-                    Total: {total}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
+            
           </table>
         </div>
       )}

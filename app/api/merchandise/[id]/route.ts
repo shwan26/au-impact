@@ -32,6 +32,7 @@ const EDITABLE_FIELDS = new Set([
   'SizeChartURL',
 ]);
 
+/* -------------------- Helpers -------------------- */
 function formToObject(fd: FormData) {
   const obj: Record<string, any> = {};
   fd.forEach((v, k) => (obj[k] = v));
@@ -120,7 +121,6 @@ function toUiMerch(
     price: Number(row.Price ?? 0),
     status: row.Status,
     availableSizes: sizes,
-    // ⬇ map labels + photo URLs into your UI shape
     availableColors: colorRows.map(r => ({ label: String(r.ColorLabel), photoUrl: r.PhotoURL })),
     pickupPoint: row.PickUpPoint ?? undefined,
     pickupDate: row.PickUpDate ?? undefined,
@@ -137,7 +137,6 @@ function toUiMerch(
   };
 }
 
-
 async function fetchSizesColors(supabase: any, itemId: number) {
   const [{ data: sz, error: szErr }, { data: col, error: colErr }] = await Promise.all([
     supabase.from('MerchandiseSize').select('"SizeLabel"').eq('ItemID', itemId),
@@ -151,7 +150,51 @@ async function fetchSizesColors(supabase: any, itemId: number) {
   };
 }
 
-/* -------------------- GET (NO MUTATIONS) -------------------- */
+async function selectMerch(supabase: any, idNum: number) {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select(FIELDS)
+    .eq('ItemID', idNum)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+  return data;
+}
+
+async function respondWithMerch(supabase: any, idNum: number, row?: any) {
+  const base = row ?? (await selectMerch(supabase, idNum));
+  if (!base) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
+  return NextResponse.json(toUiMerch(base, sizes, colorRows));
+}
+
+function isTouchingPickup(updates: Record<string, any>) {
+  return (
+    'PickUpDate' in updates ||
+    'PickUpTime' in updates ||
+    'PickUpPoint' in updates
+  );
+}
+
+async function ensureApprovedIfNeeded(supabase: any, idNum: number, touchingPickup: boolean) {
+  if (!touchingPickup) return;
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('"Status"')
+    .eq('ItemID', idNum)
+    .single();
+  if (error || !data) {
+    throw Object.assign(new Error('Merch not found'), { status: 404 });
+  }
+  if (data.Status !== 'APPROVED') {
+    throw Object.assign(
+      new Error('Pickup details can only be added after AUSO approval.'),
+      { status: 403 }
+    );
+  }
+}
+
+/* -------------------- GET -------------------- */
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const idNum = Number(id);
@@ -160,18 +203,7 @@ export async function GET(_req: Request, ctx: Ctx) {
   }
 
   const supabase = await getSupabaseServer();
-
-  const { data, error } = await supabase
-    .from(TABLE)
-    .select(FIELDS)
-    .eq('ItemID', idNum)
-    .maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data)  return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-  const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
-  return NextResponse.json(toUiMerch(data, sizes, colorRows));
-
+  return respondWithMerch(supabase, idNum);
 }
 
 /* Read-once fix: clone before delegating so body stream is fresh */
@@ -179,7 +211,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
   return PUT(req.clone(), ctx);
 }
 
-/* -------------------- PUT (edits, including colors) -------------------- */
+/* -------------------- PUT (edits incl. pickup) -------------------- */
 export async function PUT(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -208,74 +240,80 @@ export async function PUT(req: Request, ctx: Ctx) {
       try { body = await req.json(); } catch { body = {}; }
     }
 
-    // Status transitions
+    /* ----- Status transitions (AUSO/SAU) ----- */
     if ('Status' in body) {
       const next = String(body.Status);
+
       if (role === 'auso' && (next === 'APPROVED' || next === 'PENDING')) {
-        const { data, error } = await supabase
+        const upd = await supabase
           .from(TABLE)
           .update({ Status: next })
           .eq('ItemID', idNum)
           .select(FIELDS)
           .single();
-        if (error) return NextResponse.json({ error: error.message }, { status: error.code === '42501' ? 403 : 400 });
-
-        const { sizes, colors } = await fetchSizesColors(supabase, idNum);
-        return NextResponse.json(toUiMerch(data, sizes, colors));
+        if (upd.error) {
+          const status = upd.error.code === '42501' ? 403 : 400;
+          return NextResponse.json({ error: upd.error.message }, { status });
+        }
+        return respondWithMerch(supabase, idNum, upd.data);
       }
+
       if (role === 'sau' && next === 'SOLD_OUT') {
-        const { data, error } = await supabase
+        const upd = await supabase
           .from(TABLE)
           .update({ Status: 'SOLD_OUT' })
           .eq('ItemID', idNum)
           .select(FIELDS)
           .single();
-        if (error) return NextResponse.json({ error: error.message }, { status: error.code === '42501' ? 403 : 400 });
-
-        const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
-        return NextResponse.json(toUiMerch(data, sizes, colorRows));
+        if (upd.error) {
+          const status = upd.error.code === '42501' ? 403 : 400;
+          return NextResponse.json({ error: upd.error.message }, { status });
+        }
+        return respondWithMerch(supabase, idNum, upd.data);
       }
-      delete body.Status; // strip unsupported attempts
+
+      // strip unsupported attempts
+      delete body.Status;
     }
 
-    // Field edits → SAU only
+    /* ----- Field edits → SAU only ----- */
     if (role !== 'sau') {
       return NextResponse.json({ error: 'Only SAU can edit merchandise details' }, { status: 403 });
     }
 
-    // Map basic fields
+    // Map basic fields (pickup keys included)
     const candidate = toDbUpdateKeys(body);
     const updates: Record<string, any> = {};
     for (const [k, v] of Object.entries(candidate)) {
       if (EDITABLE_FIELDS.has(k)) updates[k] = v;
     }
 
-    // Optional uploads for main images
+    // Optional uploads for main images (not for pickup)
     if (fd) {
       const posterUrl = await uploadIfFile(supabase, fd, 'overview', 'posters');
       const frontUrl  = await uploadIfFile(supabase, fd, 'front',    'fronts');
       const backUrl   = await uploadIfFile(supabase, fd, 'back',     'backs');
-
       if (posterUrl) updates['PosterURL'] = posterUrl;
       if (frontUrl)  updates['FrontViewURL'] = frontUrl;
       if (backUrl)   updates['BackViewURL'] = backUrl;
     }
 
-    // ----- sizes/colors (replace set only if provided) -----
+    // If touching pickup fields, enforce APPROVED
+    await ensureApprovedIfNeeded(supabase, idNum, isTouchingPickup(updates));
+
+    /* ----- sizes/colors (replace sets if provided) ----- */
     let sizesProvided = false;
     let colorsProvided = false;
     let nextSizes: string[] = [];
     let nextColorsRows: Array<{ ItemID: number; ColorLabel: string; PhotoURL: string | null }> = [];
 
     if (fd) {
-      // Sizes come as repeated 'sizes'
       const s = fd.getAll('sizes').map((v) => String(v)).filter(Boolean);
       if (fd.has('sizes') || s.length) {
         sizesProvided = true;
         nextSizes = Array.from(new Set(s));
       }
 
-      // Colors come as paired arrays: color_name[], color_photo[]
       const nameVals = fd.getAll('color_name').map(v => String(v).trim());
       const fileVals = fd.getAll('color_photo');
 
@@ -287,7 +325,6 @@ export async function PUT(req: Request, ctx: Ctx) {
           const fAny  = fileVals[i] as any;
           const isFile = fAny && typeof fAny === 'object' && 'arrayBuffer' in fAny && (fAny as File).size > 0;
 
-          // skip blank rows
           if (!label && !isFile) continue;
 
           let photoUrl: string | null = null;
@@ -301,14 +338,12 @@ export async function PUT(req: Request, ctx: Ctx) {
         }
       }
     } else {
-      // JSON editing (optional support)
       if ('sizes' in body) {
         sizesProvided = true;
         nextSizes = Array.isArray(body.sizes) ? Array.from(new Set(body.sizes.map(String).filter(Boolean))) : [];
       }
       if ('colors' in body) {
         colorsProvided = true;
-        // Accept ['Red','Blue'] or [{label:'Red', photoUrl:'...'}]
         const arr = Array.isArray(body.colors) ? body.colors : [];
         for (const c of arr) {
           if (typeof c === 'string') {
@@ -317,13 +352,9 @@ export async function PUT(req: Request, ctx: Ctx) {
             nextColorsRows.push({ ItemID: idNum, ColorLabel: String(c.label), PhotoURL: c.photoUrl ?? null });
           }
         }
-        // de-dup by ColorLabel
+        // de-dup by label
         const seen = new Set<string>();
-        nextColorsRows = nextColorsRows.filter(r => {
-          if (seen.has(r.ColorLabel)) return false;
-          seen.add(r.ColorLabel);
-          return true;
-        });
+        nextColorsRows = nextColorsRows.filter(r => (seen.has(r.ColorLabel) ? false : (seen.add(r.ColorLabel), true)));
       }
     }
 
@@ -342,10 +373,8 @@ export async function PUT(req: Request, ctx: Ctx) {
       }
       lastRow = upd.data;
     } else {
-      const cur = await supabase.from(TABLE).select(FIELDS).eq('ItemID', idNum).maybeSingle();
-      if (cur.error) return NextResponse.json({ error: cur.error.message }, { status: 500 });
-      if (!cur.data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-      lastRow = cur.data;
+      lastRow = await selectMerch(supabase, idNum);
+      if (!lastRow) return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     // Replace sizes if provided
@@ -355,9 +384,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 
       if (nextSizes.length) {
         const rows = nextSizes.map(s => ({ ItemID: idNum, SizeLabel: s }));
-        const ins = await supabase
-          .from('MerchandiseSize')
-          .upsert(rows, { onConflict: 'ItemID,SizeLabel' });
+        const ins = await supabase.from('MerchandiseSize').upsert(rows, { onConflict: 'ItemID,SizeLabel' });
         if (ins.error) return NextResponse.json({ error: `Sizes: ${ins.error.message}` }, { status: 400 });
       }
     }
@@ -375,10 +402,10 @@ export async function PUT(req: Request, ctx: Ctx) {
       }
     }
 
-    const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
-    return NextResponse.json(toUiMerch(lastRow, sizes, colorRows));
+    return respondWithMerch(supabase, idNum, lastRow);
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+    const status = e?.status ?? 400;
+    return NextResponse.json({ error: e?.message || 'Bad request' }, { status });
   }
 }
 

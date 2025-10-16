@@ -14,10 +14,7 @@ export function CartButton() {
   const count = useMemo(() => items.reduce((s, it) => s + (it.qty ?? 1), 0), [items]);
 
   return (
-    <Link
-      href="/public/merchandise/cart"
-      className="rounded-full px-4 py-2 text-sm ring-1 ring-black"
-    >
+    <Link href="/public/merchandise/cart" className="rounded-full px-4 py-2 text-sm ring-1 ring-black">
       🛒 {count}
     </Link>
   );
@@ -26,16 +23,17 @@ export function CartButton() {
 export function PurchaseForm({ merch }: { merch: Merch }) {
   const router = useRouter();
   const { add } = useCart();
-  const { setItem: setCheckoutItem } = useCheckout();
+  const { setCheckoutItem } = useCheckout();
 
-  const [color, setColor] = useState<string>(merch.availableColors?.[0]?.code ?? '');
-  const [size, setSize] = useState<MerchSize | ''>(
-    (merch.availableSizes?.[0] as MerchSize) ?? ''
-  );
+  const hasSizes = (merch.availableSizes?.length ?? 0) > 0;
+  const hasColors = (merch.availableColors?.length ?? 0) > 0;
+
+  const [color, setColor] = useState<string>(hasColors ? merch.availableColors![0]!.label : '');
+  const [size, setSize] = useState<MerchSize | ''>(hasSizes ? (merch.availableSizes![0] as MerchSize) : '');
   const [qty, setQty] = useState<number>(1);
 
   function handleAdd(toCheckout = false) {
-    if (!size) {
+    if (hasSizes && !size) {
       alert('Please select a size');
       return;
     }
@@ -45,9 +43,9 @@ export function PurchaseForm({ merch }: { merch: Merch }) {
       slug: merch.slug,
       title: merch.title,
       price: merch.price,
-      size,
-      color: color || '',
-      qty,
+      size: hasSizes ? size : ('' as MerchSize),
+      color: hasColors ? color : '',
+      qty: Math.max(1, qty),
       image: merch.images?.poster?.url || '/images/placeholder.png',
     };
 
@@ -63,37 +61,39 @@ export function PurchaseForm({ merch }: { merch: Merch }) {
   return (
     <section className="mt-4 space-y-5">
       {/* Colors */}
-      {merch.availableColors?.length ? (
+      {hasColors && (
         <div className="space-y-2">
           <div className="text-sm font-medium">Color</div>
           <div className="flex gap-3">
-            {merch.availableColors.map((c) => (
+            {merch.availableColors!.map((c) => (
               <button
-                key={c.code}
-                onClick={() => setColor(c.code)}
-                className={`rounded-xl p-1 transition ${
-                  color === c.code ? 'ring-2 ring-black' : ''
-                }`}
-                title={c.name}
+                key={c.label}
+                onClick={() => setColor(c.label)}
+                className={`rounded-xl p-1 transition ${color === c.label ? 'ring-2 ring-black' : ''}`}
+                title={c.label}
                 type="button"
               >
-                <div className="relative h-12 w-12 overflow-hidden rounded-lg">
-                  <Image src={c.thumbnail} alt={c.name} fill className="object-cover" />
+                <div className="relative h-12 w-12 overflow-hidden rounded-lg bg-zinc-100 grid place-content-center">
+                  {c.photoUrl ? (
+                    <Image src={c.photoUrl} alt={c.label} fill className="object-cover" />
+                  ) : (
+                    <span className="text-[10px] px-1 text-zinc-500">{c.label}</span>
+                  )}
                 </div>
               </button>
             ))}
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Sizes */}
-      {merch.availableSizes?.length ? (
+      {hasSizes && (
         <div className="space-y-2">
           <div className="text-sm font-medium">Size</div>
           <div className="flex flex-wrap gap-3">
-            {merch.availableSizes.map((s) => (
+            {merch.availableSizes!.map((s) => (
               <button
-                type="button"
+              type="button"
                 key={s}
                 onClick={() => setSize(s as MerchSize)}
                 className={`h-9 w-14 rounded-full border text-sm transition ${
@@ -105,44 +105,24 @@ export function PurchaseForm({ merch }: { merch: Merch }) {
             ))}
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Quantity */}
       <div className="flex items-center gap-3">
         <span className="text-sm">Qty</span>
         <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-          <button
-            onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="px-2"
-            type="button"
-          >
-            −
-          </button>
+          <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-2" type="button">−</button>
           <span className="px-2">{qty}</span>
-          <button
-            onClick={() => setQty((q) => q + 1)}
-            className="px-2"
-            type="button"
-          >
-            +
-          </button>
+          <button onClick={() => setQty((q) => q + 1)} className="px-2" type="button">+</button>
         </div>
       </div>
 
       {/* Actions */}
       <div className="mt-2 flex flex-wrap gap-4">
-        <button
-          onClick={() => handleAdd(false)}
-          className="rounded-full border px-5 py-2"
-          type="button"
-        >
+        <button onClick={() => handleAdd(false)} className="rounded-full border px-5 py-2" type="button">
           Add To Cart
         </button>
-        <button
-          onClick={() => handleAdd(true)}
-          className="rounded-full bg-black px-5 py-2 text-white"
-          type="button"
-        >
+        <button onClick={() => handleAdd(true)} className="rounded-full bg-black px-5 py-2 text-white" type="button">
           Buy Now
         </button>
       </div>

@@ -3,102 +3,76 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useCart } from '@/hooks/useCart';
 import { useCheckout } from '@/hooks/useCheckout';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/lib/supabaseClient'; // 👈 change
 import type { CartItem } from '@/types/db';
 
 const keyOf = (i: CartItem) => `${i.itemId}-${i.size}-${i.color}`;
 
 export default function CheckoutPage() {
   const { items: cartItemsRaw, total: cartTotal } = useCart();
-const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
-
+  const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
 
   const selItemsRaw = useCheckout((s) => s.items);
   const singleItem = useCheckout((s) => s.item);
-  const selItems: CartItem[] = Array.isArray(selItemsRaw)
-    ? selItemsRaw
-    : singleItem
-    ? [singleItem]
-    : [];
+  const selItems: CartItem[] = Array.isArray(selItemsRaw) ? selItemsRaw : singleItem ? [singleItem] : [];
 
   const router = useRouter();
-  const [fileName, setFileName] = useState<string>('');
+  const [fileName, setFileName] = useState('');
   const [slipFile, setSlipFile] = useState<File | null>(null);
 
-  // Buyer info state
   const [buyerName, setBuyerName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [lineId, setLineId] = useState('');
 
-  // Prefill from sessionStorage if user comes back
+  // ✅ create a browser client instance (once)
+  const supabase = useMemo(() => createClient(), []);
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem('pp:buyerInfo');
-      if (raw) {
-        const saved = JSON.parse(raw) as {
-          buyerName?: string;
-          studentId?: string;
-          lineId?: string;
-        };
-        if (saved.buyerName) setBuyerName(saved.buyerName);
-        if (saved.studentId) setStudentId(saved.studentId);
-        if (saved.lineId) setLineId(saved.lineId);
-      }
-    } catch {
-      // ignore
-    }
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { buyerName?: string; studentId?: string; lineId?: string };
+      if (saved.buyerName) setBuyerName(saved.buyerName);
+      if (saved.studentId) setStudentId(saved.studentId);
+      if (saved.lineId) setLineId(saved.lineId);
+    } catch {}
   }, []);
 
   const isSelectionMode = selItems.length > 0;
-  const candidate = isSelectionMode ? selItems : cartItems;
-  const lineItems: CartItem[] = Array.isArray(candidate) ? candidate : [];
+  const lineItems: CartItem[] = isSelectionMode ? selItems : cartItems;
 
   const computedTotal =
-    lineItems.reduce(
-      (sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 0),
-      0
-    ) || cartTotal;
+    lineItems.reduce((sum, i) => sum + (Number(i.price) || 0) * (Number(i.qty) || 0), 0) || cartTotal;
 
   async function handleConfirm() {
-    if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    if (lineItems.length === 0) {
       alert('Cart is empty.');
       return;
     }
-
     if (!buyerName.trim() || !studentId.trim() || !lineId.trim()) {
       alert('Please fill your Name, Student ID, and LINE ID.');
       return;
     }
 
     let slipUrl: string | null = null;
-
     try {
       if (slipFile) {
-        const fileExt = slipFile.name.split('.').pop();
-        const filePath = `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
+        const ext = slipFile.name.split('.').pop() || 'bin';
+        const filePath = `slips/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('order-slips')
-          .upload(filePath, slipFile);
-
+        const { error: uploadError } = await supabase.storage.from('order-slips').upload(filePath, slipFile);
         if (uploadError) {
           alert('❌ Failed to upload slip: ' + uploadError.message);
           return;
         }
-
-        // Get a public URL (or signed URL if bucket is private)
-        const { data: publicUrlData } = supabase.storage
-          .from('order-slips')
-          .getPublicUrl(filePath);
-
-        slipUrl = publicUrlData?.publicUrl ?? null;
+        const { data: pub } = supabase.storage.from('order-slips').getPublicUrl(filePath);
+        slipUrl = pub?.publicUrl ?? null;
       }
 
+      // NOTE: if your /api/orders expects "lines", send lines; if it expects "items", keep "items".
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -108,31 +82,31 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
           lineId,
           totalAmount: computedTotal,
           slipUpload: slipUrl,
-          items: lineItems,
+          // ⬇️ If your API expects "lines", rename this accordingly.
+          lines: lineItems.map((i) => ({
+            itemId: i.itemId,
+            size: i.size,
+            color: i.color,
+            qty: i.qty,
+          })),
         }),
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         alert('❌ Failed to create order: ' + (data.error || 'Unknown error'));
         return;
       }
 
-      // Save locally for UX
-      const purchasedKeys = lineItems.map(keyOf);
-      sessionStorage.setItem('pp:lastPurchased', JSON.stringify(purchasedKeys));
-      sessionStorage.setItem(
-        'pp:buyerInfo',
-        JSON.stringify({ buyerName, studentId, lineId })
-      );
-
+      sessionStorage.setItem('pp:lastPurchased', JSON.stringify(lineItems.map(keyOf)));
+      sessionStorage.setItem('pp:buyerInfo', JSON.stringify({ buyerName, studentId, lineId }));
       router.push('/public/merchandise/checkout/success');
     } catch (err) {
       console.error(err);
       alert('❌ Something went wrong while placing the order.');
     }
   }
+
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-8">
