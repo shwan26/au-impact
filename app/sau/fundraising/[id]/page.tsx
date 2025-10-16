@@ -1,4 +1,3 @@
-// app/sau/fundraising/[id]/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -10,7 +9,7 @@ type ApiItem = {
   id: string | number;
   title: string;
   description?: string | null;
-  status?: string | null; // PENDING | LIVE | ENDED | REJECTED | ...
+  status?: 'PENDING' | 'LIVE' | 'COMPLETE' | string;
   organizerName?: string | null;
   contactLine?: string | null;
   location?: string | null;
@@ -74,11 +73,9 @@ export default function SAUEditFundraisingPage() {
     return () => { cancelled = true; };
   }, [hasValidNumericId, idNum]);
 
-  const isEnded = (item?.status || '').toUpperCase() === 'ENDED';
-
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!hasValidNumericId || !item || isEnded) return;
+    if (!hasValidNumericId || !item) return;
 
     const fd = new FormData(e.currentTarget);
 
@@ -99,7 +96,7 @@ export default function SAUEditFundraisingPage() {
         qrUrl = up.publicUrl;
       }
 
-      // 2) Build payload
+      // 2) Build payload (fall back to current values when empty)
       const payload: Partial<ApiItem> = {
         title: String(fd.get('title') ?? item.title),
         organizerName: String(fd.get('organizerName') ?? item.organizerName ?? ''),
@@ -110,6 +107,7 @@ export default function SAUEditFundraisingPage() {
         goal: fd.get('goal') ? Number(fd.get('goal')) : (item.goal ?? null),
         description: String(fd.get('description') ?? item.description ?? ''),
         status: item.status ?? 'PENDING',
+
         bankBookName: String(fd.get('bankBookName') ?? item.bankBookName ?? ''),
         bankBookAccount: String(fd.get('bankBookAccount') ?? item.bankBookAccount ?? ''),
         bankName: String(fd.get('bankName') ?? item.bankName ?? ''),
@@ -118,6 +116,7 @@ export default function SAUEditFundraisingPage() {
       if (imageUrl !== undefined) payload.imageUrl = imageUrl;
       if (qrUrl !== undefined) payload.qrUrl = qrUrl;
 
+      // 3) Save
       const res = await fetch(`/api/fundraising/${idNum}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -136,7 +135,7 @@ export default function SAUEditFundraisingPage() {
   }
 
   async function onClose() {
-    if (!hasValidNumericId || isEnded) return;
+    if (!hasValidNumericId) return;
     if (!confirm('Close this fundraising?')) return;
     try {
       setSaving(true);
@@ -144,7 +143,7 @@ export default function SAUEditFundraisingPage() {
       const res = await fetch(`/api/fundraising/${idNum}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'ENDED' }), // ✅ set ENDED
+        body: JSON.stringify({ status: 'COMPLETE' }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Failed to close');
@@ -173,24 +172,16 @@ export default function SAUEditFundraisingPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-4">
+      {/* Top actions */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Fundraising</h1>
         <div className="flex gap-2">
           <Link href={`/sau/fundraising/${idStr}/list`} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold hover:bg-zinc-50">Fundraising List</Link>
-          {!isEnded && (
-            <button onClick={onClose} disabled={saving} className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-semibold hover:bg-zinc-300 disabled:opacity-60">
-              Close Fundraising
-            </button>
-          )}
+          <button onClick={onClose} disabled={saving} className="rounded-lg bg-zinc-200 px-4 py-2 text-sm font-semibold hover:bg-zinc-300 disabled:opacity-60">Close Fundraising</button>
         </div>
       </div>
 
-      {isEnded && (
-        <div className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
-          This fundraising is closed (ENDED). Viewing only.
-        </div>
-      )}
-
+      {/* Meta */}
       <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
         <div className="py-2 text-sm font-medium text-zinc-700">Activity Unit</div>
         <div className="py-2">Student Council of Theodore Maria School of Arts</div>
@@ -202,50 +193,50 @@ export default function SAUEditFundraisingPage() {
       {/* Edit form */}
       <form onSubmit={onSubmit} className="space-y-4">
         <Row label="Project Name">
-          <input name="title" defaultValue={item.title} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 disabled:bg-zinc-50" />
+          <input name="title" defaultValue={item.title} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
         </Row>
 
         <Row label="Organizer Name">
-          <input name="organizerName" defaultValue={item.organizerName ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="organizerName" defaultValue={item.organizerName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Organizer LineID">
-          <input name="contactLine" defaultValue={item.contactLine ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="contactLine" defaultValue={item.contactLine ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Event Venue">
-          <input name="location" defaultValue={item.location ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="location" defaultValue={item.location ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Event Date From / To">
           <div className="grid grid-cols-2 gap-3">
-            <input type="date" name="startDate" defaultValue={item.startDate?.slice(0, 10) || ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
-            <input type="date" name="endDate" defaultValue={item.endDate?.slice(0, 10) || ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+            <input type="date" name="startDate" defaultValue={item.startDate?.slice(0, 10) || ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
+            <input type="date" name="endDate" defaultValue={item.endDate?.slice(0, 10) || ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
           </div>
         </Row>
 
         <Row label="Expected Money Amount (THB)">
-          <input type="number" name="goal" min={0} defaultValue={item.goal ?? 0} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input type="number" name="goal" min={0} defaultValue={item.goal ?? 0} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         <Row label="Write Caption">
-          <textarea name="description" rows={4} defaultValue={item.description ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <textarea name="description" rows={4} defaultValue={item.description ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         {/* Bank fields */}
         <Row label="Bank Book Name">
-          <input name="bankBookName" defaultValue={item.bankBookName ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="bankBookName" defaultValue={item.bankBookName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
         <Row label="Bank Book Account">
-          <input name="bankBookAccount" defaultValue={item.bankBookAccount ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="bankBookAccount" defaultValue={item.bankBookAccount ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
         <Row label="Bank Name">
-          <input name="bankName" defaultValue={item.bankName ?? ''} disabled={isEnded} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none disabled:bg-zinc-50" />
+          <input name="bankName" defaultValue={item.bankName ?? ''} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none" />
         </Row>
 
         {/* QR upload */}
         <Row label="PromptPay QR code">
-          <label className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 px-4 py-6 text-sm ${isEnded ? 'bg-zinc-50 cursor-not-allowed' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
             <span>{qrFile?.name ?? (item.qrUrl ? 'Replace current QR' : 'Upload QR image (.png, .jpg, .jpeg)')}</span>
             <input
@@ -253,14 +244,13 @@ export default function SAUEditFundraisingPage() {
               accept="image/png,image/jpeg"
               onChange={(e) => setQrFile(e.currentTarget.files?.[0] ?? null)}
               className="hidden"
-              disabled={isEnded}
             />
           </label>
         </Row>
 
         {/* Poster upload */}
         <Row label="Upload Poster">
-          <label className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 px-4 py-6 text-sm ${isEnded ? 'bg-zinc-50 cursor-not-allowed' : 'bg-zinc-100 hover:bg-zinc-200'}`}>
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
             <span className="text-xl">＋</span>
             <span>{posterFile?.name ?? (item.imageUrl ? 'Replace current poster' : 'Upload .png, .jpg, .jpeg')}</span>
             <input
@@ -268,18 +258,15 @@ export default function SAUEditFundraisingPage() {
               accept="image/png,image/jpeg"
               onChange={(e) => setPosterFile(e.currentTarget.files?.[0] ?? null)}
               className="hidden"
-              disabled={isEnded}
             />
           </label>
         </Row>
 
-        {!isEnded && (
-          <div className="pt-2">
-            <button type="submit" disabled={saving} className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-60">
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-          </div>
-        )}
+        <div className="pt-2">
+          <button type="submit" disabled={saving} className="rounded-md bg-zinc-200 px-6 py-2 font-medium text-zinc-700 hover:bg-zinc-300 disabled:opacity-60">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
       </form>
     </div>
   );

@@ -6,28 +6,25 @@ export const dynamic = 'force-dynamic';
 
 const TABLE = 'event_attendance';
 
+// Shape sent back to UI
 type RegItem = { studentId: string; name: string; phone: string; attended?: boolean };
 
 // GET /api/events/[id]/registrations
 export async function GET(
   _req: Request,
-  { params }: { params: { id: string } }   // ← fix: params is NOT a Promise here
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
-    const eventId = Number(id);
-    if (!Number.isFinite(eventId)) {
-      return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
-    }
-
+    const { id } = await ctx.params;
     const supabase = getSupabaseServer();
+
     const { data, error } = await supabase
       .from(TABLE)
       .select('eventid, role, studentid, name, phone, attended')
-      .eq('eventid', eventId);
+      .eq('eventid', id);
 
     if (error) {
-      console.error('GET /registrations error:', error);
+      console.error('GET registrations error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -46,20 +43,21 @@ export async function GET(
 
     return NextResponse.json({ staff, participants });
   } catch (e: any) {
-    console.error('GET /registrations exception:', e?.message);
+    console.error('GET registrations exception:', e?.message);
     return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
   }
 }
 
 // POST /api/events/[id]/registrations
-// Mode A (public single): { role, FullName, Phone, StudentID }
-// Mode B (SAU bulk upsert): { staff: RegItem[], participants: RegItem[] }
+// Two modes:
+// 1) Public submit one registration: { role, FullName, Phone, StudentID, ... }
+// 2) SAU save attendance: { staff: RegItem[], participants: RegItem[] }
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }   // ← fix here too
+  ctx: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await ctx.params;
     const eventId = Number(id);
     if (!Number.isFinite(eventId)) {
       return NextResponse.json({ error: 'Invalid event id' }, { status: 400 });
@@ -68,7 +66,7 @@ export async function POST(
     const supabase = getSupabaseServer();
     const body = await req.json().catch(() => ({}));
 
-    // ---------- Mode B: bulk save (SAU attendance page) ----------
+    // -------- Mode 2: bulk save from SAU attendance UI (keep upsert) --------
     if (Array.isArray(body.staff) || Array.isArray(body.participants)) {
       const rows: any[] = [];
       const push = (arr: any[], role: 'STAFF' | 'PARTICIPANT') => {
@@ -94,19 +92,19 @@ export async function POST(
         .upsert(rows, { onConflict: 'eventid,role,studentid' });
 
       if (error) {
-        console.error('POST /registrations upsert error:', error);
+        console.error('POST registrations upsert error:', error);
         return NextResponse.json({ error: error.message }, { status: 400 });
       }
       return NextResponse.json({ ok: true });
     }
 
-    // ---------- Mode A: public single registration ----------
+    // -------- Mode 1: single public submission (insert only, idempotent) -----
     const role = String(body.role || '').toUpperCase();
     const fullName = String(body.FullName || body.name || '').trim();
     const phone = String(body.Phone || body.phone || '').trim();
     const studentId = String(body.StudentID || body.studentId || '').trim();
 
-    if (!['STAFF', 'PARTICIPANT'].includes(role)) {
+    if (!role || !['STAFF', 'PARTICIPANT'].includes(role)) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
     if (!fullName || !phone || !studentId) {
@@ -118,6 +116,7 @@ export async function POST(
 
     const raw = { ...body };
 
+    // Use INSERT (not UPSERT). If duplicate, treat as success.
     const { error } = await supabase.from(TABLE).insert([
       {
         eventid: eventId,
@@ -130,13 +129,12 @@ export async function POST(
       },
     ]);
 
-    // 23505 = unique violation on (eventid,role,studentid) — treat as success
     if (error) {
-      // @ts-ignore (Supabase error codes)
-      if (error.code === '23505') {
+      // 23505 = unique_violation (already registered) — consider "ok"
+      if ((error as any).code === '23505') {
         return NextResponse.json({ ok: true, duplicate: true });
       }
-      console.error('POST /registrations insert error:', error);
+      console.error('POST registrations insert error:', error);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
