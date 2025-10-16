@@ -1,3 +1,4 @@
+// app/auso/merchandise/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -28,7 +29,6 @@ export default function AUSOMerchandisePage() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Merchandise</h1>
         <Link
@@ -39,10 +39,8 @@ export default function AUSOMerchandisePage() {
         </Link>
       </div>
 
-      {/* Error */}
       {error && <div className="text-red-600">{error}</div>}
 
-      {/* Loading */}
       {loading ? (
         <div className="text-gray-500">Loading…</div>
       ) : (

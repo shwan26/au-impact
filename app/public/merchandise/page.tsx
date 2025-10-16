@@ -30,11 +30,11 @@ export default function Page() {
     [items]
   );
 
-  // ✅ fetch from API instead of mock
+  // fetch from API
   const { data, loading, error } = useJson<{ items: Merch[] }>('/api/merchandise');
   const allMerches = data?.items ?? [];
 
-  // filter (optional)
+  // filter
   const filtered = useMemo(() => {
     if (!q) return allMerches;
     return allMerches.filter(

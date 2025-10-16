@@ -15,8 +15,9 @@ export default function RegisterButtons({ eventId, openStaff, openParticipants }
   const cls =
     'rounded-lg bg-zinc-200 px-4 py-2 text-sm font-semibold hover:bg-zinc-300 disabled:cursor-not-allowed disabled:opacity-50';
 
-  const staffDisabled = openStaff === 0;                // only 0 disables
-  const participantDisabled = openParticipants === 0;   // only 0 disables
+  // Only "0" disables. null/undefined means unlimited (enabled).
+  const staffDisabled = openStaff === 0;
+  const participantDisabled = openParticipants === 0;
 
   return (
     <div className="flex flex-wrap gap-3">
@@ -27,6 +28,7 @@ export default function RegisterButtons({ eventId, openStaff, openParticipants }
       >
         Register as Staff
       </button>
+
       <button
         className={cls}
         disabled={participantDisabled}

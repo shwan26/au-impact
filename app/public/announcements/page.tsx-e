@@ -1,13 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
-type ApiItem = {
-  AnnouncementID: number;
-  Topic: string;
-  Description: string | null;
-  PhotoURL: string | null;
-  DatePosted: string | null;
-  Status: 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
-};
-
+import { errMsg } from '@/lib/errors';
 import { unstable_noStore as noStore } from 'next/cache';
 import Link from 'next/link';
 
@@ -79,8 +70,8 @@ export default async function PublicAnnouncementsPage() {
   try {
     const res = await fetch(url, { cache: 'no-store', next: { revalidate: 0 } });
     if (res.ok) {
-      const json = (await res.json()) as { items?: ApiItem[] };
-      items = (json.items ?? []).map((r) => ({
+      const json = await res.json();
+      items = (json.items ?? []).map((r: any) => ({
         id: String(r.AnnouncementID),
         topic: r.Topic,
         description: r.Description ?? undefined,

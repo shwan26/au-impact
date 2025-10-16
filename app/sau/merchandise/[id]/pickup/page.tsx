@@ -1,4 +1,3 @@
-// app/sau/merchandise/[id]/pickup/page.tsx
 'use client';
 
 import { notFound, useRouter } from 'next/navigation';

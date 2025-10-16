@@ -9,7 +9,7 @@ import type { CartItem } from '@/types/db';
 const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
 
 export default function CheckoutSuccessPage() {
-  const { items: cartItems, remove, clear } = useCart();
+  const { items: cartItems, remove } = useCart();
   const clearSelection = useCheckout((s) => s.clear);
 
   const ranRef = useRef(false);
@@ -33,9 +33,7 @@ export default function CheckoutSuccessPage() {
       }
 
       sessionStorage.removeItem('pp:lastPurchased');
-    } catch {
-      // ignore JSON/storage issues
-    }
+    } catch {}
   }, [cartItems, clearSelection, remove]);
 
   return (

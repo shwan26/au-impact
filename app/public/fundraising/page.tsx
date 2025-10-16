@@ -27,7 +27,7 @@ export default async function PublicFundraisingPage({
 }: {
   searchParams?: { q?: string };
 }) {
-  noStore(); // disable caching for fresh data
+  noStore(); // fresh data
   const q = (searchParams?.q ?? '').trim();
 
   const base = getBaseUrl();
@@ -48,28 +48,36 @@ export default async function PublicFundraisingPage({
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
-      <div className="flex items-end justify-between gap-2 flex-wrap">
+      <div className="flex items-end justify-between gap-3 flex-wrap">
         <h1 className="text-2xl font-extrabold">Fundraising</h1>
 
-        <form method="GET" className="flex items-center gap-2">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search project name…"
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
-          />
-          <button className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-300">
-            Search
-          </button>
+        <div className="flex items-center gap-2">
+          <form method="GET" className="flex items-center gap-2">
+            <input
+              name="q"
+              defaultValue={q}
+              placeholder="Search project name…"
+              aria-label="Search fundraising projects"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            />
+            <button
+              className="rounded-md bg-zinc-200 px-4 py-2 text-sm font-medium hover:bg-zinc-300"
+              type="submit"
+            >
+              Search
+            </button>
+          </form>
+
           {q && (
-            <a
+            <Link
               href="/public/fundraising"
-              className="rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
+              className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+              aria-label="Clear search and show all projects"
             >
               Clear
-            </a>
+            </Link>
           )}
-        </form>
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -99,7 +107,7 @@ export default async function PublicFundraisingPage({
 
         {!items.length && (
           <div className="col-span-full rounded-md border border-zinc-200 p-6 text-center text-zinc-600">
-            {q ? `No projects match “${q}”.` : 'No fundraising projects found.'}
+            {q ? <>No projects match “{q}”.</> : 'No fundraising projects found.'}
           </div>
         )}
       </div>

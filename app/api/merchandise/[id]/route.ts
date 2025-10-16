@@ -1,10 +1,9 @@
-// app/api/merchandise/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
   const { data, error } = await supabase
-    .from('Merchandise')
+    .from('merchandise')
     .select('*')
     .eq('ItemID', params.id)
     .single();
@@ -17,7 +16,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = await req.json();
 
   const { data, error } = await supabase
-    .from('Merchandise')
+    .from('merchandise')
     .update(body)
     .eq('ItemID', params.id)
     .select()
@@ -28,7 +27,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const { error } = await supabase.from('Merchandise').delete().eq('ItemID', params.id);
+  const { error } = await supabase
+    .from('merchandise')
+    .delete()
+    .eq('ItemID', params.id);
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

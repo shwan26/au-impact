@@ -39,6 +39,11 @@ function stripPublicPrefix(bucket: string, url: string) {
   );
   return url.replace(re, '');
 }
+function normalizeIncomingStatus(s?: string | null) {
+  const up = String(s ?? 'PENDING').toUpperCase();
+  if (up === 'APPROVED' || up === 'COMPLETE') return 'ENDED';
+  return up; // PENDING, LIVE, REJECTED, ENDED…
+}
 
 function mapRow(r: any) {
   return {
@@ -92,7 +97,9 @@ export async function POST(req: Request) {
   const row: Record<string, any> = {};
   if (typeof body.title === 'string') row.title = body.title;
   if (typeof body.description === 'string') row.description = body.description;
-  if (typeof body.status === 'string') row.status = body.status;
+  // ✅ normalize to ENDED for approved/complete
+  row.status = normalizeIncomingStatus(typeof body.status === 'string' ? body.status : 'PENDING');
+
   if (typeof body.organizerName === 'string') row.orgname = body.organizerName;
   if (typeof body.contactLine === 'string') row.orglineid = body.contactLine;
   if (typeof body.location === 'string') row.location = body.location;

@@ -1,4 +1,3 @@
-// app/api/events/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseClient';
 
@@ -48,9 +47,8 @@ function mapRow(r: any) {
     AUSO_ID: r.auso_id ?? null,
     Status: r.status ?? null,
 
-    // ✅ new: poster goes out as PosterURL (public page prefers this)
+    // Make sure poster is exposed to clients
     PosterURL: r.posterurl ?? null,
-    // keep PhotoURL fallback if you later add it
     PhotoURL: r.photourl ?? null,
   };
 }
@@ -58,10 +56,10 @@ function mapRow(r: any) {
 // GET /api/events/[id]
 export async function GET(
   _req: Request,
-  ctx: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await ctx.params;
+    const { id } = await params; // ✅ await params
     const supabase = getSupabaseServer();
 
     const { data, error } = await supabase
@@ -80,9 +78,12 @@ export async function GET(
 }
 
 // PUT /api/events/[id]
-export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { id } = await ctx.params;
+    const { id } = await params; // ✅ await params
     const body = await req.json();
 
     const updates: Record<string, any> = {};
@@ -94,39 +95,42 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       updates.venue = nilIfEmpty(body.Venue ?? body.Location);
     }
 
-    // Datetimes (allow StartDate/EndDate OR StartDateTime/EndDateTime)
+    // Datetimes
     const start = body.StartDateTime ?? body.StartDate ?? null;
-    const end = body.EndDateTime ?? body.EndDate ?? null;
+    const end   = body.EndDateTime   ?? body.EndDate   ?? null;
     if (start !== null) updates.startdatetime = start;
-    if (end !== null) updates.enddatetime = end;
+    if (end   !== null) updates.enddatetime   = end;
 
     // Fee & bank
     if (body.Fee !== undefined) {
       const n = Number(body.Fee);
       updates.fee = Number.isFinite(n) ? n : null;
     }
-    if (body.BankName !== undefined) updates.bankname = nilIfEmpty(body.BankName);
-    if (body.BankAccountNo !== undefined) updates.bankaccountno = nilIfEmpty(body.BankAccountNo);
+    if (body.BankName        !== undefined) updates.bankname        = nilIfEmpty(body.BankName);
+    if (body.BankAccountNo   !== undefined) updates.bankaccountno   = nilIfEmpty(body.BankAccountNo);
     if (body.BankAccountName !== undefined) updates.bankaccountname = nilIfEmpty(body.BankAccountName);
-    if (body.PromptPayQR !== undefined) updates.promptpayqr = nilIfEmpty(body.PromptPayQR);
+    if (body.PromptPayQR     !== undefined) updates.promptpayqr     = nilIfEmpty(body.PromptPayQR);
 
     // Organizer + LINE + scholarship
-    if (body.OrganizerName !== undefined) updates.organizername = nilIfEmpty(body.OrganizerName);
+    if (body.OrganizerName   !== undefined) updates.organizername   = nilIfEmpty(body.OrganizerName);
     if (body.OrganizerLineID !== undefined) updates.organizerlineid = nilIfEmpty(body.OrganizerLineID);
-    if (body.LineGpURL !== undefined) updates.linegpurl = nilIfEmpty(body.LineGpURL);
-    if (body.LineGpQRCode !== undefined) updates.linegpqrcode = nilIfEmpty(body.LineGpQRCode);
+    if (body.LineGpURL       !== undefined) updates.linegpurl       = nilIfEmpty(body.LineGpURL);
+    if (body.LineGpQRCode    !== undefined) updates.linegpqrcode    = nilIfEmpty(body.LineGpQRCode);
     if (body.ScholarshipHours !== undefined) {
       const n = Number(body.ScholarshipHours);
       updates.scholarshiphours = Number.isFinite(n) ? Math.trunc(n) : null;
     }
 
     // Capacity + deadlines
-    if (body.MaxParticipant !== undefined) updates.maxparticipant = body.MaxParticipant ?? null;
+    if (body.MaxParticipant      !== undefined) updates.maxparticipant      = body.MaxParticipant ?? null;
     if (body.ParticipantDeadline !== undefined) updates.participantdeadline = nilIfEmpty(body.ParticipantDeadline);
-    if (body.MaxStaff !== undefined) updates.maxstaff = body.MaxStaff ?? null;
-    if (body.MaxStaffDeadline !== undefined) updates.maxstaffdeadline = nilIfEmpty(body.MaxStaffDeadline);
+    if (body.MaxStaff            !== undefined) updates.maxstaff            = body.MaxStaff ?? null;
+    if (body.MaxStaffDeadline    !== undefined) updates.maxstaffdeadline    = nilIfEmpty(body.MaxStaffDeadline);
 
-    // Status mapping (APPROVED -> LIVE passthrough)
+    // Poster URL (keep in sync if AUSO updates)
+    if (body.PosterURL !== undefined) updates.posterurl = nilIfEmpty(body.PosterURL);
+
+    // Status mapping
     if (body.Status !== undefined) {
       const up = String(body.Status ?? '').toUpperCase();
       updates.status = up === 'APPROVED' ? 'LIVE' : up;
@@ -146,9 +150,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     const effStart = updates.startdatetime ?? current.startdatetime ?? null;
-    const effEnd = updates.enddatetime ?? current.enddatetime ?? null;
-    const effPartDeadline = updates.participantdeadline ?? current.participantdeadline ?? null;
-    const effStaffDeadline = updates.maxstaffdeadline ?? current.maxstaffdeadline ?? null;
+    const effEnd   = updates.enddatetime   ?? current.enddatetime   ?? null;
+    const effPart  = updates.participantdeadline ?? current.participantdeadline ?? null;
+    const effStaff = updates.maxstaffdeadline    ?? current.maxstaffdeadline    ?? null;
 
     if (effStart && effEnd) {
       const s = new Date(effStart);
@@ -157,13 +161,13 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         return NextResponse.json({ error: 'EndDate must be after StartDate.' }, { status: 400 });
       }
     }
-    if (effStart && effPartDeadline && new Date(effPartDeadline) > new Date(effStart)) {
+    if (effStart && effPart && new Date(effPart) > new Date(effStart)) {
       return NextResponse.json(
         { error: 'ParticipantDeadline must be on/before StartDateTime.' },
         { status: 400 }
       );
     }
-    if (effStart && effStaffDeadline && new Date(effStaffDeadline) > new Date(effStart)) {
+    if (effStart && effStaff && new Date(effStaff) > new Date(effStart)) {
       return NextResponse.json(
         { error: 'MaxStaffDeadline must be on/before StartDateTime.' },
         { status: 400 }

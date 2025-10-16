@@ -5,25 +5,15 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 
 type ApiFund =
-  | {
-      // expected from our API mapper
-      id?: number | string;
-      title?: string;
-      status?: 'PENDING' | 'LIVE' | 'COMPLETE' | string;
-    }
-  | {
-      // just in case the API returns raw DB columns
-      FundID?: number;
-      Title?: string;
-      Status?: string;
-    };
+  | { id?: number | string; title?: string; status?: string }
+  | { FundID?: number; Title?: string; Status?: string };
 
 type Row = {
   key: string;
   id: number | null;
   projectNumber: string;
   projectName: string;
-  statusLabel: 'Approved' | 'Pending';
+  statusLabel: 'Pending' | 'Live' | 'Ended' | 'Rejected';
 };
 
 function toProjectNumber(id: number | null) {
@@ -32,10 +22,14 @@ function toProjectNumber(id: number | null) {
   return `F${digits}`;
 }
 
-function toStatusLabel(s?: string): 'Approved' | 'Pending' {
-  if (!s) return 'Pending';
-  const up = s.toUpperCase();
-  return up === 'PENDING' ? 'Pending' : 'Approved'; // treat LIVE/COMPLETE as Approved
+function toStatusLabel(s?: string): Row['statusLabel'] {
+  const up = String(s || 'PENDING').toUpperCase();
+  if (up === 'PENDING') return 'Pending';
+  if (up === 'LIVE') return 'Live';
+  if (up === 'REJECTED') return 'Rejected';
+  // treat COMPLETE/APPROVED as ENDED
+  if (up === 'COMPLETE' || up === 'APPROVED' || up === 'ENDED') return 'Ended';
+  return 'Pending';
 }
 
 function toNum(v: unknown): number | null {
@@ -58,7 +52,6 @@ export default function SAUFundraisingPage() {
         const json = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(json?.error || 'Failed to load fundraising');
 
-        // list may be {items:[...]} or just an array; support both
         const arr: ApiFund[] = Array.isArray(json) ? json : Array.isArray(json?.items) ? json.items : [];
         if (!cancel) setItems(arr);
       } catch (e: any) {
@@ -67,9 +60,7 @@ export default function SAUFundraisingPage() {
         if (!cancel) setLoading(false);
       }
     })();
-    return () => {
-      cancel = true;
-    };
+    return () => { cancel = true; };
   }, []);
 
   const rows: Row[] = useMemo(() => {
@@ -82,13 +73,10 @@ export default function SAUFundraisingPage() {
       const title = (it as any).title ?? (it as any).Title ?? '(untitled)';
       const status = (it as any).status ?? (it as any).Status ?? 'PENDING';
 
-      const projectNumber = toProjectNumber(id);
-      const key = id != null ? `id-${id}` : `na-${idx}`;
-
       return {
-        key,
+        key: id != null ? `id-${id}` : `na-${idx}`,
         id,
-        projectNumber,
+        projectNumber: toProjectNumber(id),
         projectName: String(title),
         statusLabel: toStatusLabel(String(status)),
       };
@@ -100,7 +88,6 @@ export default function SAUFundraisingPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header + New button */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-extrabold">Fundraising</h1>
         <Link
@@ -111,17 +98,12 @@ export default function SAUFundraisingPage() {
         </Link>
       </div>
 
-      {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-zinc-300 bg-white">
         <table className="w-full border-collapse text-sm">
           <thead className="bg-zinc-50 text-zinc-800">
             <tr className="border-b border-zinc-300">
-              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
-                Project Number
-              </th>
-              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
-                Project Name
-              </th>
+              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Project Number</th>
+              <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">Project Name</th>
               <th className="px-4 py-3 text-left font-semibold">Status</th>
             </tr>
           </thead>

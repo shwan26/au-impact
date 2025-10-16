@@ -9,12 +9,11 @@ import { useCheckout } from '@/hooks/useCheckout';
 import { supabase } from '@/lib/supabaseClient';
 import type { CartItem } from '@/types/db';
 
-const keyOf = (i: CartItem) => `${i.itemId}-${i.size}-${i.color}`;
+const keyOf = (i: CartItem) => `${i.itemId}-${i.size ?? ''}-${i.color ?? ''}`;
 
 export default function CheckoutPage() {
   const { items: cartItemsRaw, total: cartTotal } = useCart();
-const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
-
+  const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
 
   const selItemsRaw = useCheckout((s) => s.items);
   const singleItem = useCheckout((s) => s.item);
@@ -25,15 +24,13 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
     : [];
 
   const router = useRouter();
-  const [fileName, setFileName] = useState<string>('');
+  const [fileName, setFileName] = useState('');
   const [slipFile, setSlipFile] = useState<File | null>(null);
 
-  // Buyer info state
   const [buyerName, setBuyerName] = useState('');
   const [studentId, setStudentId] = useState('');
   const [lineId, setLineId] = useState('');
 
-  // Prefill from sessionStorage if user comes back
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem('pp:buyerInfo');
@@ -47,9 +44,7 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
         if (saved.studentId) setStudentId(saved.studentId);
         if (saved.lineId) setLineId(saved.lineId);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }, []);
 
   const isSelectionMode = selItems.length > 0;
@@ -63,11 +58,10 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
     ) || cartTotal;
 
   async function handleConfirm() {
-    if (!Array.isArray(lineItems) || lineItems.length === 0) {
+    if (!lineItems.length) {
       alert('Cart is empty.');
       return;
     }
-
     if (!buyerName.trim() || !studentId.trim() || !lineId.trim()) {
       alert('Please fill your Name, Student ID, and LINE ID.');
       return;
@@ -78,9 +72,7 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
     try {
       if (slipFile) {
         const fileExt = slipFile.name.split('.').pop();
-        const filePath = `${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${fileExt}`;
+        const filePath = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('order-slips')
@@ -91,7 +83,6 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
           return;
         }
 
-        // Get a public URL (or signed URL if bucket is private)
         const { data: publicUrlData } = supabase.storage
           .from('order-slips')
           .getPublicUrl(filePath);
@@ -113,13 +104,11 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
       });
 
       const data = await res.json();
-
       if (!res.ok) {
         alert('❌ Failed to create order: ' + (data.error || 'Unknown error'));
         return;
       }
 
-      // Save locally for UX
       const purchasedKeys = lineItems.map(keyOf);
       sessionStorage.setItem('pp:lastPurchased', JSON.stringify(purchasedKeys));
       sessionStorage.setItem(
@@ -152,7 +141,12 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
             className="mb-4 flex items-center gap-4 rounded-xl border p-4"
           >
             <div className="relative h-24 w-24 overflow-hidden rounded-lg bg-gray-100">
-              <Image src={i.image} alt={i.title} fill className="object-cover" />
+              <Image
+                src={i.image || '/placeholder.png'}
+                alt={i.title}
+                fill
+                className="object-cover"
+              />
             </div>
             <div className="flex-1">
               <div className="text-lg font-semibold">{i.title}</div>
@@ -170,53 +164,15 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
         ))
       )}
 
-      <h2 className="mt-8 text-xl font-semibold">
-        Total - {computedTotal} Baht
-      </h2>
+      <h2 className="mt-8 text-xl font-semibold">Total - {computedTotal} Baht</h2>
 
       {/* Buyer info */}
       <section className="mt-6 rounded-xl p-4">
         <h3 className="text-lg font-semibold">Your Information</h3>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <div>
-            <label htmlFor="buyer-name" className="mb-1 block text-sm text-gray-700">
-              Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="buyer-name"
-              type="text"
-              value={buyerName}
-              onChange={(e) => setBuyerName(e.target.value)}
-              placeholder="Your full name"
-              className="w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600"
-            />
-          </div>
-          <div>
-            <label htmlFor="student-id" className="mb-1 block text-sm text-gray-700">
-              Student ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="student-id"
-              type="text"
-              value={studentId}
-              onChange={(e) => setStudentId(e.target.value)}
-              placeholder="e.g., 6612345"
-              className="w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600"
-            />
-          </div>
-          <div>
-            <label htmlFor="line-id" className="mb-1 block text-sm text-gray-700">
-              LINE ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="line-id"
-              type="text"
-              value={lineId}
-              onChange={(e) => setLineId(e.target.value)}
-              placeholder="your_line_id"
-              className="w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600"
-            />
-          </div>
+          <Field label="Name" value={buyerName} setValue={setBuyerName} required />
+          <Field label="Student ID" value={studentId} setValue={setStudentId} required />
+          <Field label="LINE ID" value={lineId} setValue={setLineId} required />
         </div>
       </section>
 
@@ -234,7 +190,6 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
           </div>
         </div>
 
-        {/* File Upload */}
         <div>
           <div className="mb-2 text-sm text-gray-600">Upload Slip</div>
           <div className="flex items-center gap-2">
@@ -250,9 +205,10 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
               className="hidden"
               accept="image/*,.pdf"
               onChange={(e) => {
-                if (e.target.files && e.target.files.length > 0) {
-                  setSlipFile(e.target.files[0]);
-                  setFileName(e.target.files[0].name);
+                const file = e.target.files?.[0];
+                if (file) {
+                  setSlipFile(file);
+                  setFileName(file.name);
                 } else {
                   setSlipFile(null);
                   setFileName('');
@@ -281,5 +237,34 @@ const cartItems: CartItem[] = Array.isArray(cartItemsRaw) ? cartItemsRaw : [];
         </button>
       </div>
     </main>
+  );
+}
+
+function Field({
+  label,
+  value,
+  setValue,
+  required,
+}: {
+  label: string;
+  value: string;
+  setValue: (v: string) => void;
+  required?: boolean;
+}) {
+  const id = label.toLowerCase().replace(/\s+/g, '-');
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1 block text-sm text-gray-700">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        id={id}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={label}
+        className="w-full rounded-lg border px-3 py-2 outline-none focus:ring-2 focus:ring-blue-600"
+      />
+    </div>
   );
 }

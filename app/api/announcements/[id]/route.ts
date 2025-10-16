@@ -1,4 +1,3 @@
-// app/api/announcements/[id]/route.ts
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
@@ -8,19 +7,44 @@ const TABLE = 'announcement';
 const FIELDS =
   'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
 
-// DB -> API (PascalCase) mapper
-function mapRow(r: any) {
-  return {
-    AnnouncementID: r.announcementid,
-    Topic: r.topic,
-    Description: r.description,
-    PhotoURL: r.photourl,
-    DatePosted: r.dateposted,
-    Status: r.status,
-    SAU_ID: r.sau_id ?? null,
-    AUSO_ID: r.auso_id ?? null,
-  };
+type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+
+interface AnnouncementDBRow {
+  announcementid: number;
+  topic: string;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string;
+  status: Status;
+  sau_id: number | null;
+  auso_id: number | null;
 }
+interface AnnouncementAPI {
+  AnnouncementID: number;
+  Topic: string;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string;
+  Status: Status;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
+}
+type UpdatePayload = Partial<Pick<
+  AnnouncementDBRow,
+  'topic' | 'description' | 'photourl' | 'status' | 'sau_id' | 'auso_id'
+>>;
+
+const toApi = (r: AnnouncementDBRow): AnnouncementAPI => ({
+  AnnouncementID: r.announcementid,
+  Topic: r.topic,
+  Description: r.description,
+  PhotoURL: r.photourl,
+  DatePosted: r.dateposted,
+  Status: r.status,
+  SAU_ID: r.sau_id ?? null,
+  AUSO_ID: r.auso_id ?? null,
+});
+const msg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
 export async function GET(
   _req: Request,
@@ -38,14 +62,14 @@ export async function GET(
       .from(TABLE)
       .select(FIELDS)
       .eq('announcementid', idNum)
+      .returns<AnnouncementDBRow>()
       .maybeSingle();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
-    return NextResponse.json(mapRow(data));
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
+    return NextResponse.json(toApi(data));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Internal error' }, { status: 500 });
   }
 }
 
@@ -60,33 +84,40 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
     }
 
-    const supabase = getSupabaseServer();
-    const body = await req.json();
+    const body = (await req.json()) as {
+      Topic?: string | null;
+      Description?: string | null;
+      PhotoURL?: string | null;
+      Status?: Status | null;
+      SAU_ID?: number | null;
+      AUSO_ID?: number | null;
+    };
 
-    // only set provided fields to avoid overwriting with undefined
-    const payload: Record<string, any> = {};
-    if ('Topic' in body) payload.topic = body.Topic ?? null;
-    if ('Description' in body) payload.description = body.Description ?? null;
-    if ('PhotoURL' in body) payload.photourl = body.PhotoURL ?? null;
-    if ('Status' in body) payload.status = body.Status ?? null;
-    if ('SAU_ID' in body) payload.sau_id = body.SAU_ID ?? null;
-    if ('AUSO_ID' in body) payload.auso_id = body.AUSO_ID ?? null;
+    const payload: UpdatePayload = {};
+    if ('Topic' in body) { payload.topic = body.Topic ?? null; }
+    if ('Description' in body) { payload.description = body.Description ?? null; }
+    if ('PhotoURL' in body) { payload.photourl = body.PhotoURL ?? null; }
+    if ('Status' in body) { payload.status = body.Status ?? null as Status | null; }
+    if ('SAU_ID' in body) { payload.sau_id = body.SAU_ID ?? null; }
+    if ('AUSO_ID' in body) { payload.auso_id = body.AUSO_ID ?? null; }
 
     if (Object.keys(payload).length === 0) {
       return NextResponse.json({ error: 'No updatable fields' }, { status: 400 });
     }
 
+    const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from(TABLE)
       .update(payload)
       .eq('announcementid', idNum)
       .select(FIELDS)
+      .returns<AnnouncementDBRow>()
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json(mapRow(data));
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+    return NextResponse.json(toApi(data));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Bad request' }, { status: 400 });
   }
 }
 
@@ -102,14 +133,10 @@ export async function DELETE(
     }
 
     const supabase = getSupabaseServer();
-    const { error } = await supabase
-      .from(TABLE)
-      .delete()
-      .eq('announcementid', idNum);
-
+    const { error } = await supabase.from(TABLE).delete().eq('announcementid', idNum);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Bad request' }, { status: 400 });
   }
 }

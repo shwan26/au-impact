@@ -12,7 +12,6 @@ function nilIfEmpty(x: unknown) {
   const s = String(x).trim();
   return s === '' ? null : s;
 }
-
 function mapRow(r: any) {
   if (!r) return null;
   return {
@@ -32,12 +31,9 @@ function mapRow(r: any) {
 
     OrganizerName: r.organizername ?? null,
     OrganizerLineID: r.organizerlineid ?? null,
-
-    // Single LINE fields we actually store today
     LineGpURL: r.linegpurl ?? null,
     LineGpQRCode: r.linegpqrcode ?? null,
-
-    ScholarshipHours: r.scholarshiphours == null ? null : Number(r.scholarshiphours),
+    ScholarshipHours: r.scholarshiphours ?? null,
 
     MaxParticipant: r.maxparticipant ?? null,
     ParticipantDeadline: r.participantdeadline ?? null,
@@ -48,7 +44,7 @@ function mapRow(r: any) {
     AUSO_ID: r.auso_id ?? null,
     Status: r.status ?? null,
 
-    PosterURL: r.posterurl ?? null,
+    PosterURL: null,
   };
 }
 
@@ -56,19 +52,6 @@ function mapRow(r: any) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
-    // Accept either single or separate LINE URLs/QRs from the client
-    const lineGpURL =
-      body.LineGpURL ??
-      body.LineGpURL_Staff ??
-      body.LineGpURL_Participant ??
-      null;
-
-    const lineGpQRCode =
-      body.LineGpQRCode ??
-      body.LineGpQRCode_Staff ??
-      body.LineGpQRCode_Participant ??
-      null;
 
     const insert: Record<string, any> = {
       title: nilIfEmpty(body.Title) ?? 'Untitled Event',
@@ -86,20 +69,14 @@ export async function POST(req: Request) {
 
       organizername: nilIfEmpty(body.OrganizerName),
       organizerlineid: nilIfEmpty(body.OrganizerLineID),
-
-      // Store the combined values in existing columns
-      linegpurl: nilIfEmpty(lineGpURL),
-      linegpqrcode: nilIfEmpty(lineGpQRCode),
-
+      linegpurl: nilIfEmpty(body.LineGpURL),
+      linegpqrcode: nilIfEmpty(body.LineGpQRCode),
       scholarshiphours: body.ScholarshipHours == null ? null : Math.trunc(Number(body.ScholarshipHours)),
 
       maxparticipant: body.MaxParticipant ?? null,
       participantdeadline: nilIfEmpty(body.ParticipantDeadline),
       maxstaff: body.MaxStaff ?? null,
       maxstaffdeadline: nilIfEmpty(body.MaxStaffDeadline),
-
-      // Poster image URL (accept new PosterURL or legacy PhotoURL)
-      posterurl: nilIfEmpty(body.PosterURL ?? body.PhotoURL),
 
       status: (() => {
         const up = String(body.Status ?? 'PENDING').toUpperCase();
@@ -110,7 +87,6 @@ export async function POST(req: Request) {
       auso_id: body.AUSO_ID ?? null,
     };
 
-    // --- validation checks ---
     const s = insert.startdatetime ? new Date(insert.startdatetime) : null;
     const e = insert.enddatetime ? new Date(insert.enddatetime) : null;
     if (s && e && (isNaN(s.getTime()) || isNaN(e.getTime()) || e <= s)) {
@@ -181,3 +157,68 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
   }
 }
+
+import { NextResponse } from 'next/server';
+import { getSupabaseServer } from '@/lib/supabaseClient';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+const TABLE = 'event';
+const FIELDS =
+  'eventid, title, description, venue, startdatetime, enddatetime, status, fee, posterurl, photourl, photo_url, organizername';
+
+function mapRow(r: any) {
+  if (!r) return null;
+  return {
+    EventID: r.eventid ?? r.id ?? null,
+    Title: r.title ?? 'Untitled Event',
+    Description: r.description ?? null,
+    Venue: r.venue ?? null,
+    StartDateTime: r.startdatetime ?? null,
+    EndDateTime: r.enddatetime ?? null,
+    Status: (r.status ?? 'PENDING') as string,
+    Fee: r.fee ?? null,
+    PhotoURL: r.photo_url ?? r.photourl ?? r.posterurl ?? null,
+    OrganizerName: r.organizername ?? null,
+  };
+}
+
+export async function GET(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const status = (url.searchParams.get('status') || '').trim().toUpperCase();
+    const q = (url.searchParams.get('q') || '').trim();
+
+    const supabase = getSupabaseServer();
+    let query = supabase.from(TABLE).select(FIELDS, { count: 'exact' });
+
+    if (status && status !== 'ALL') {
+      query = query.eq('status', status);
+    }
+
+    if (q) {
+      query = query.or(
+        [
+          `title.ilike.%${q}%`,
+          `description.ilike.%${q}%`,
+          `venue.ilike.%${q}%`,
+          `organizername.ilike.%${q}%`,
+        ].join(',')
+      );
+    }
+
+    query = query.order('startdatetime', { ascending: true }).order('eventid', { ascending: false });
+
+    const { data, error } = await query;
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    const items = (Array.isArray(data) ? data : []).map(mapRow).filter(Boolean);
+    return NextResponse.json({ items, count: items.length });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message || 'Server error' }, { status: 500 });
+  }
+}
+

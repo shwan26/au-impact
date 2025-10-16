@@ -1,6 +1,4 @@
 'use client';
-/* eslint-disable @next/next/no-img-element */
-import type React from 'react';
 import { errMsg } from '@/lib/errors';
 
 import Link from 'next/link';
@@ -230,7 +228,7 @@ export default function SAUEditAnnouncementPage() {
                   setItem((prev) => (prev ? { ...prev, photoUrl: updated.PhotoURL ?? null } : prev));
                   // clear file input
                   e.currentTarget.value = '';
-                } catch (err: unknown) {
+                } catch (err: any) {
                   alert(err?.message || 'Upload failed');
                 } finally {
                   setUploading(false);

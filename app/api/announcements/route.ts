@@ -8,21 +8,53 @@ const TABLE = 'announcement';
 const FIELDS =
   'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
 
-const ALLOWED_STATUS = new Set(['DRAFT', 'PENDING', 'LIVE', 'COMPLETE']);
+type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+const ALLOWED_STATUS = new Set<Status>(['DRAFT', 'PENDING', 'LIVE', 'COMPLETE']);
 
-// DB -> API (PascalCase)
-function mapRow(r: any) {
-  return {
-    AnnouncementID: r.announcementid,
-    Topic: r.topic,
-    Description: r.description,
-    PhotoURL: r.photourl,
-    DatePosted: r.dateposted,
-    Status: r.status,
-    SAU_ID: r.sau_id ?? null,
-    AUSO_ID: r.auso_id ?? null,
-  };
+interface AnnouncementDBRow {
+  announcementid: number;
+  topic: string;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string;
+  status: Status;
+  sau_id: number | null;
+  auso_id: number | null;
 }
+
+interface AnnouncementAPI {
+  AnnouncementID: number;
+  Topic: string;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string;
+  Status: Status;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
+}
+
+interface CreateBody {
+  Topic: string;
+  Description?: string | null;
+  PhotoURL?: string | null;
+  Status?: Status;
+  SAU_ID?: number | null;
+  AUSO_ID?: number | null;
+}
+
+const toApi = (r: AnnouncementDBRow): AnnouncementAPI => ({
+  AnnouncementID: r.announcementid,
+  Topic: r.topic,
+  Description: r.description,
+  PhotoURL: r.photourl,
+  DatePosted: r.dateposted,
+  Status: r.status,
+  SAU_ID: r.sau_id ?? null,
+  AUSO_ID: r.auso_id ?? null,
+});
+
+const msg = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e);
 
 export async function GET(req: Request) {
   try {
@@ -38,7 +70,6 @@ export async function GET(req: Request) {
     let q = supabase
       .from(TABLE)
       .select(FIELDS, { count: 'exact' })
-      // ✅ newest first so fresh SAU submissions appear immediately
       .order('announcementid', { ascending: false });
 
     if (status) {
@@ -48,29 +79,36 @@ export async function GET(req: Request) {
       q = q.eq('status', status);
     }
 
-    const { data, error, count } = await q.range(from, to);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const { data, error, count } = await q
+      .returns<AnnouncementDBRow[]>()
+      .range(from, to);
 
-    const items = (data ?? []).map(mapRow);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
+    const items = (data ?? []).map(toApi);
     return NextResponse.json({ page, pageSize, total: count ?? 0, items });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Internal error' }, { status: 500 });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: msg(e) || 'Internal error' },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(req: Request) {
   try {
     const supabase = getSupabaseServer();
-    const body = await req.json();
+    const body = (await req.json()) as CreateBody;
 
-    const payload: Record<string, any> = {
-      topic: (body?.Topic ?? '').trim(),
-      description: body?.Description ?? null,
-      photourl: body?.PhotoURL ?? null,
-      status: body?.Status ?? 'DRAFT',
-      sau_id: body?.SAU_ID ?? null,
-      auso_id: body?.AUSO_ID ?? null,
+    const payload: Omit<AnnouncementDBRow, 'announcementid' | 'dateposted'> = {
+      topic: (body.Topic ?? '').trim(),
+      description: body.Description ?? null,
+      photourl: body.PhotoURL ?? null,
+      status: (body.Status ?? 'DRAFT') as Status,
+      sau_id: body.SAU_ID ?? null,
+      auso_id: body.AUSO_ID ?? null,
     };
 
     if (!payload.topic) {
@@ -84,12 +122,21 @@ export async function POST(req: Request) {
       .from(TABLE)
       .insert(payload)
       .select(FIELDS)
+      .returns<AnnouncementDBRow>()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error || !data) {
+      return NextResponse.json(
+        { error: error?.message || 'Create failed' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json(mapRow(data), { status: 201 });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+    return NextResponse.json(toApi(data), { status: 201 });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: msg(e) || 'Bad request' },
+      { status: 400 }
+    );
   }
 }

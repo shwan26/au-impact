@@ -13,42 +13,53 @@ export default async function Page({ params }: { params: { id: string } }) {
 
   if (!res.ok) return notFound();
   const data = await res.json();
-
   if (!data) return notFound();
 
-  // Map API fields into your Merch type
+  // Normalize DB response into our Merch type
   const merch: Merch = {
-    itemId: String(data.ItemID),
-    slug: String(data.Title ?? '').toLowerCase().replace(/\s+/g, '-'),
-    title: String(data.Title ?? ''),
-    description: data.Description ?? '',
-    price: Number(data.Price ?? 0),
-    availableSizes: [], // extend later if needed
+    itemId: String(data.ItemID ?? data.itemId ?? ''),
+    slug: String(data.Title ?? data.title ?? '')
+      .toLowerCase()
+      .replace(/\s+/g, '-'),
+    title: String(data.Title ?? data.title ?? ''),
+    description: data.Description ?? data.description ?? '',
+    price: Number(data.Price ?? data.price ?? 0),
+    status: data.Status ?? data.status ?? 'PENDING',
+    availableSizes: [], // extend if needed
     availableColors: [],
     images: {
-      poster: { alt: 'Poster', url: data.PosterURL ?? '' },
-      frontView: data.FrontURL ? { alt: 'Front', url: data.FrontURL } : undefined,
-      backView: undefined, // 👈 explicitly included to satisfy type
+      poster: { alt: 'Poster', url: data.PosterURL ?? data.posterUrl ?? '' },
+      frontView: data.FrontViewURL
+        ? { alt: 'Front', url: data.FrontViewURL }
+        : data.frontUrl
+        ? { alt: 'Front', url: data.frontUrl }
+        : undefined,
+      backView: data.BackViewURL
+        ? { alt: 'Back', url: data.BackViewURL }
+        : data.backUrl
+        ? { alt: 'Back', url: data.backUrl }
+        : undefined,
       sizeChart: data.SizeChartURL
         ? { alt: 'Size Chart', url: data.SizeChartURL }
+        : data.sizeChartUrl
+        ? { alt: 'Size Chart', url: data.sizeChartUrl }
         : undefined,
-      misc: Array.isArray(data.MiscURLs)
-        ? data.MiscURLs.map((u: string, idx: number) => ({
+      misc: Array.isArray(data.MiscURLs ?? data.miscUrls)
+        ? (data.MiscURLs ?? data.miscUrls).map((u: string, idx: number) => ({
             alt: `Misc ${idx + 1}`,
             url: u,
           }))
         : [],
     },
-  } as Partial<Merch> as Merch;
+  };
 
   const tiles = [
     merch.images.poster,
     merch.images.frontView,
+    merch.images.backView,
     merch.images.sizeChart,
-    ...(merch.images.misc || []),
-  ]
-    .filter(Boolean)
-    .slice(0, 4) as { alt: string; url: string }[];
+    ...(merch.images.misc ?? []),
+  ].filter(Boolean) as { alt: string; url: string }[];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6">
@@ -79,7 +90,7 @@ export default async function Page({ params }: { params: { id: string } }) {
       {/* Price */}
       <p className="mt-6 text-3xl font-extrabold">{merch.price} Baht</p>
 
-      {/* Interactive order form (client) */}
+      {/* Interactive order form */}
       <PurchaseForm merch={merch} />
     </main>
   );

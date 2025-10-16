@@ -28,7 +28,7 @@ export default function SAUCreateEventPage() {
 
   const [recruitStaff, setRecruitStaff] = useState<'yes' | 'no'>('yes');
   const [paidOrFree, setPaidOrFree] = useState<'paid' | 'free'>('free');
-  const [files, setFiles] = useState<FileList | null>(null);
+  const [files, setFiles] = useState<FileList | null>(null); // (kept for future upload)
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -61,11 +61,13 @@ export default function SAUCreateEventPage() {
       const maxParticipants        = toNumber(fd.get('maxParticipants')) ?? 0;
       const participantDeadlineISO = toISOOrNull(fd.get('participantDeadline'));
 
-      // Poster upload placeholder
-      let photoUrl: string | null = null;
+      // ✅ Poster URL from text field (works immediately)
+      const posterUrl = String(fd.get('posterUrl') ?? '').trim() || null;
+
+      // (Optional future) file input kept for later real upload wiring
       if (files?.[0]) {
-        // TODO: wire poster upload endpoint if you want to store a cover
-        photoUrl = null;
+        // TODO: Upload to storage and set posterUrl to the returned public URL
+        // posterUrl = uploadedPublicURL;
       }
 
       // Separate LINE groups
@@ -73,6 +75,10 @@ export default function SAUCreateEventPage() {
       const lineGpQrStaff   = String(fd.get('lineGpQrStaff') ?? '').trim() || null;
       const lineGpUrlPart   = String(fd.get('lineGpUrlPart') ?? '').trim() || null;
       const lineGpQrPart    = String(fd.get('lineGpQrPart') ?? '').trim() || null;
+
+      // Also send combined (so API columns get filled)
+      const lineGpUrlCombined = lineGpUrlStaff || lineGpUrlPart || null;
+      const lineGpQrCombined  = lineGpQrStaff  || lineGpQrPart  || null;
 
       // Payment
       const bankName        = String(fd.get('bankName') ?? '').trim() || null;
@@ -84,7 +90,10 @@ export default function SAUCreateEventPage() {
       const payload: Record<string, any> = {
         Title: String(fd.get('projectName') || 'Untitled').trim(),
         Description: String(fd.get('projectDescription') || '').trim(),
-        PhotoURL: photoUrl,
+
+        // ✅ This is what your API saves to posterurl
+        PosterURL: posterUrl,
+
         Location: String(fd.get('eventVenue') || '').trim(),
         StartDate: startISO,
         EndDate: endISO,
@@ -102,11 +111,15 @@ export default function SAUCreateEventPage() {
         OrganizerName: String(fd.get('organizerName') || '').trim() || null,
         OrganizerLineID: String(fd.get('organizerLineId') || '').trim() || null,
 
-        // Separate LINE
+        // Keep separate
         LineGpURL_Staff: lineGpUrlStaff,
         LineGpQRCode_Staff: lineGpQrStaff,
         LineGpURL_Participant: lineGpUrlPart,
         LineGpQRCode_Participant: lineGpQrPart,
+
+        // And combined for existing DB columns
+        LineGpURL: lineGpUrlCombined,
+        LineGpQRCode: lineGpQrCombined,
 
         // Fees & bank
         Fee: fee,
@@ -134,7 +147,6 @@ export default function SAUCreateEventPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as any)?.error || 'Failed to create event');
 
-      // Back to list
       router.push('/sau/event?submitted=1');
     } catch (e: any) {
       setErr(e?.message || 'Something went wrong');
@@ -143,7 +155,6 @@ export default function SAUCreateEventPage() {
   }
 
   const staffDisabled = recruitStaff === 'no';
-  const feeDisabled   = paidOrFree === 'free';
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6">
@@ -194,18 +205,30 @@ export default function SAUCreateEventPage() {
         </Row>
 
         <Row label="Maximum Staff No.">
-          <input name="maxStaff" type="number" min={0} disabled={staffDisabled}
-            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${staffDisabled ? 'opacity-50 pointer-events-none' : ''}`} />
+          <input name="maxStaff" type="number" min={0} disabled={recruitStaff === 'no'}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${recruitStaff === 'no' ? 'opacity-50 pointer-events-none' : ''}`} />
         </Row>
 
         <Row label="Deadline for Staff">
-          <input name="staffDeadline" type="date" disabled={staffDisabled}
-            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${staffDisabled ? 'opacity-50 pointer-events-none' : ''}`} />
+          <input name="staffDeadline" type="date" disabled={recruitStaff === 'no'}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${recruitStaff === 'no' ? 'opacity-50 pointer-events-none' : ''}`} />
         </Row>
 
         <Row label="Scholar Hours for Staff">
-          <input name="scholarHours" type="number" min={0} disabled={staffDisabled}
-            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${staffDisabled ? 'opacity-50 pointer-events-none' : ''}`} />
+          <input name="scholarHours" type="number" min={0} disabled={recruitStaff === 'no'}
+            className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${recruitStaff === 'no' ? 'opacity-50 pointer-events-none' : ''}`} />
+        </Row>
+
+        {/* ✅ Poster URL (simple, works now) */}
+        <Field label="Poster (image URL)" name="posterUrl" />
+
+        {/* Existing upload UI kept (no functional upload yet) */}
+        <Row label="Upload Poster">
+          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
+            <span className="text-xl">＋</span>
+            <span>{files?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (optional)'}</span>
+            <input type="file" name="poster" accept="image/png,image/jpeg" onChange={(e) => setFiles(e.currentTarget.files)} className="hidden" />
+          </label>
         </Row>
 
         {/* Separate LINE groups */}
@@ -243,7 +266,6 @@ export default function SAUCreateEventPage() {
             className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${paidOrFree === 'free' ? 'opacity-50 pointer-events-none' : ''}`} />
         </Row>
 
-        {/* Collapsible Payment (only for Paid) */}
         {paidOrFree === 'paid' && (
           <div className="rounded-md border border-zinc-200 p-3">
             <button type="button" onClick={() => setShowPayment((v) => !v)} className="text-sm font-semibold">
@@ -267,14 +289,6 @@ export default function SAUCreateEventPage() {
             )}
           </div>
         )}
-
-        <Row label="Upload Poster">
-          <label className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-zinc-100 px-4 py-6 text-sm hover:bg-zinc-200">
-            <span className="text-xl">＋</span>
-            <span>{files?.[0]?.name ?? 'Upload .png, .jpg, .jpeg (optional)'}</span>
-            <input type="file" name="poster" accept="image/png,image/jpeg" onChange={(e) => setFiles(e.currentTarget.files)} className="hidden" />
-          </label>
-        </Row>
 
         <Row label="Project Description">
           <textarea name="projectDescription" rows={4} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
@@ -300,10 +314,18 @@ function Row({ label, children }: { label?: string; children: React.ReactNode })
     </div>
   );
 }
-function Field({ label, name, type = 'text', required, min }: { label: string; name: string; type?: string; required?: boolean; min?: number; }) {
+function Field({
+  label, name, type = 'text', required, min,
+}: { label: string; name: string; type?: string; required?: boolean; min?: number; }) {
   return (
     <Row label={label}>
-      <input name={name} type={type} required={required} min={min} className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200" />
+      <input
+        name={name}
+        type={type}
+        required={required}
+        min={min}
+        className="w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
+      />
     </Row>
   );
 }

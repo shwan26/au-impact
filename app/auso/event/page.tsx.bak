@@ -1,0 +1,147 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+
+type Ev = {
+  EventID?: string | number | null;
+  Title?: string | null;
+  Description?: string | null;
+  Venue?: string | null;
+  StartDateTime?: string | null;
+  EndDateTime?: string | null;
+  Status?: string | null;
+  PhotoURL?: string | null;
+  PosterURL?: string | null;
+  MaxParticipant?: number | null;
+  MaxStaff?: number | null;
+};
+
+const TABS = ['ALL','PENDING','LIVE','COMPLETE','REJECTED','DRAFT'] as const;
+type TabKey = typeof TABS[number];
+
+function fmtDate(iso?: string | null) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString();
+}
+
+export default function AUSOEventListPage() {
+  const [tab, setTab] = useState<TabKey>('ALL');
+  const [items, setItems] = useState<Ev[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function load() {
+    try {
+      setLoading(true);
+      setErr(null);
+      const r = await fetch('/api/events', { cache: 'no-store' });
+      const t = await r.text();
+      if (!r.ok || !t) throw new Error('Failed to fetch');
+      const j = JSON.parse(t) as Ev[] | any;
+      setItems(Array.isArray(j) ? j : []);
+    } catch (e: any) {
+      setErr(e?.message || 'Error loading events');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+    const onFocus = () => load();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (tab === 'ALL') return items;
+    return items.filter((e) => String(e.Status ?? '').toUpperCase() === tab);
+  }, [items, tab]);
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-extrabold">Events (AUSO)</h1>
+        <button
+          onClick={load}
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm hover:bg-zinc-50"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {TABS.map((k) => {
+          const active = tab === k;
+          return (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`rounded-full px-3 py-1 text-sm ${
+                active ? 'bg-zinc-900 text-white' : 'bg-zinc-100 hover:bg-zinc-200'
+              }`}
+            >
+              {k}
+            </button>
+          );
+        })}
+      </div>
+
+      {err && (
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {err}
+        </div>
+      )}
+      {loading && <div>Loading…</div>}
+      {!loading && filtered.length === 0 && <div>No events.</div>}
+
+      <ul className="divide-y rounded-md border">
+        {filtered.map((e) => {
+          const id = String(e.EventID ?? '');
+          const title = (e.Title ?? '').trim() || 'Untitled Event';
+          const cover = e.PhotoURL ?? e.PosterURL ?? null;
+          return (
+            <li key={id} className="flex items-center gap-4 p-3">
+              {cover ? (
+                <img
+                  src={cover}
+                  alt={title}
+                  className="h-20 w-16 rounded-md border object-cover"
+                />
+              ) : (
+                <div className="h-20 w-16 rounded-md border bg-zinc-100" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <Link href={`/auso/event/${id}`} className="truncate font-semibold hover:underline">
+                    {title}
+                  </Link>
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium">
+                    {String(e.Status ?? 'PENDING').toUpperCase()}
+                  </span>
+                </div>
+                <div className="mt-1 text-xs text-zinc-600">
+                  {fmtDate(e.StartDateTime)}
+                  {e.EndDateTime ? ` – ${fmtDate(e.EndDateTime)}` : ''}
+                  {e.Venue ? ` • ${e.Venue}` : ''}
+                </div>
+                <div className="mt-1 text-xs text-zinc-600">
+                  Staff cap: {e.MaxStaff ?? '—'} • Participant cap: {e.MaxParticipant ?? '—'}
+                </div>
+              </div>
+              <Link
+                href={`/auso/event/${id}`}
+                className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm hover:bg-zinc-50"
+              >
+                Review
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

@@ -85,7 +85,7 @@ export default function SAUCreateMerchClothesPage() {
           </div>
         </Row>
 
-        {/* Options (photo + caption), add more */}
+        {/* Options */}
         {options.map((opt, idx) => (
           <div
             key={opt.id}

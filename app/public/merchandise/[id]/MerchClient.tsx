@@ -1,151 +1,106 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
-
-import type { Merch, MerchSize } from '@/types/db';
+import { useState } from 'react';
 import { useCart } from '@/hooks/useCart';
-import { useCheckout } from '@/hooks/useCheckout';
+import type { Merch } from '@/types/db';
 
 export function CartButton() {
   const { items } = useCart();
-  const count = useMemo(() => items.reduce((s, it) => s + (it.qty ?? 1), 0), [items]);
+  const count = items.reduce((sum, it) => sum + (it.qty ?? 1), 0);
 
   return (
-    <Link
-      href="/public/merchandise/cart"
-      className="rounded-full px-4 py-2 text-sm ring-1 ring-black"
+    <button
+      type="button"
+      className="rounded-full border px-4 py-2 text-sm hover:bg-zinc-100"
+      onClick={() => {
+        // redirect to cart page
+        window.location.href = '/public/merchandise/cart';
+      }}
     >
-      🛒 {count}
-    </Link>
+      🛒 Cart ({count})
+    </button>
   );
 }
 
 export function PurchaseForm({ merch }: { merch: Merch }) {
-  const router = useRouter();
   const { add } = useCart();
-  const { setItem: setCheckoutItem } = useCheckout();
 
-  const [color, setColor] = useState<string>(merch.availableColors?.[0]?.code ?? '');
-  const [size, setSize] = useState<MerchSize | ''>(
-    (merch.availableSizes?.[0] as MerchSize) ?? ''
-  );
+  const [size, setSize] = useState<string>('');
+  const [color, setColor] = useState<string>('');
   const [qty, setQty] = useState<number>(1);
 
-  function handleAdd(toCheckout = false) {
-    if (!size) {
-      alert('Please select a size');
-      return;
-    }
-
-    const line = {
+  function handleAdd() {
+    add({
       itemId: merch.itemId,
-      slug: merch.slug,
       title: merch.title,
       price: merch.price,
-      size,
-      color: color || '',
       qty,
-      image: merch.images?.poster?.url || '/images/placeholder.png',
-    };
-
-    if (toCheckout) {
-      setCheckoutItem(line);
-      router.push('/public/merchandise/checkout');
-    } else {
-      add(line);
-      router.push('/public/merchandise/cart');
-    }
+      size,
+      color,
+      image: merch.images.poster.url,
+    });
+    alert('✅ Added to cart');
   }
 
   return (
-    <section className="mt-4 space-y-5">
-      {/* Colors */}
-      {merch.availableColors?.length ? (
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Color</div>
-          <div className="flex gap-3">
-            {merch.availableColors.map((c) => (
-              <button
-                key={c.code}
-                onClick={() => setColor(c.code)}
-                className={`rounded-xl p-1 transition ${
-                  color === c.code ? 'ring-2 ring-black' : ''
-                }`}
-                title={c.name}
-                type="button"
-              >
-                <div className="relative h-12 w-12 overflow-hidden rounded-lg">
-                  <Image src={c.thumbnail} alt={c.name} fill className="object-cover" />
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Sizes */}
-      {merch.availableSizes?.length ? (
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Size</div>
-          <div className="flex flex-wrap gap-3">
+    <div className="mt-6 space-y-4">
+      {/* Size options */}
+      {merch.availableSizes?.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium">Size</label>
+          <select
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+            className="mt-1 rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Select size</option>
             {merch.availableSizes.map((s) => (
-              <button
-                type="button"
-                key={s}
-                onClick={() => setSize(s as MerchSize)}
-                className={`h-9 w-14 rounded-full border text-sm transition ${
-                  size === s ? 'bg-black text-white' : 'bg-white'
-                }`}
-              >
+              <option key={s} value={s}>
                 {s}
-              </button>
+              </option>
             ))}
-          </div>
+          </select>
         </div>
-      ) : null}
+      )}
+
+      {/* Color options */}
+      {merch.availableColors?.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium">Color</label>
+          <select
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="mt-1 rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Select color</option>
+            {merch.availableColors.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Quantity */}
-      <div className="flex items-center gap-3">
-        <span className="text-sm">Qty</span>
-        <div className="inline-flex items-center gap-1 rounded-full border px-2 py-1">
-          <button
-            onClick={() => setQty((q) => Math.max(1, q - 1))}
-            className="px-2"
-            type="button"
-          >
-            −
-          </button>
-          <span className="px-2">{qty}</span>
-          <button
-            onClick={() => setQty((q) => q + 1)}
-            className="px-2"
-            type="button"
-          >
-            +
-          </button>
-        </div>
+      <div>
+        <label className="block text-sm font-medium">Quantity</label>
+        <input
+          type="number"
+          value={qty}
+          min={1}
+          onChange={(e) => setQty(Number(e.target.value))}
+          className="mt-1 w-20 rounded-md border px-3 py-2 text-sm"
+        />
       </div>
 
-      {/* Actions */}
-      <div className="mt-2 flex flex-wrap gap-4">
-        <button
-          onClick={() => handleAdd(false)}
-          className="rounded-full border px-5 py-2"
-          type="button"
-        >
-          Add To Cart
-        </button>
-        <button
-          onClick={() => handleAdd(true)}
-          className="rounded-full bg-black px-5 py-2 text-white"
-          type="button"
-        >
-          Buy Now
-        </button>
-      </div>
-    </section>
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="rounded-md bg-black px-4 py-2 text-white hover:bg-gray-800"
+      >
+        Add to Cart
+      </button>
+    </div>
   );
 }

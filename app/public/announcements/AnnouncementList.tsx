@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 
 export type AnnouncementListItem = {
   id: string;
@@ -25,9 +26,16 @@ export default function AnnouncementList({ items }: { items: AnnouncementListIte
       {items.map((a) => (
         <article key={a.id} className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
           {/* Image */}
-          <div className="aspect-[16/9] bg-zinc-100">
+          <div className="relative aspect-[16/9] bg-zinc-100">
             {a.photoUrl ? (
-              <img src={a.photoUrl} alt={a.topic} className="h-full w-full object-cover" />
+              <Image
+                src={a.photoUrl}
+                alt={a.topic}
+                fill
+                sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw"
+                className="object-cover"
+                unoptimized
+              />
             ) : null}
           </div>
 

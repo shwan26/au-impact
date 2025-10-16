@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { unstable_noStore as noStore } from 'next/cache';
+import Image from 'next/image';
 
 type ApiItem = {
   AnnouncementID: number;
@@ -40,8 +41,17 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
       <div className="mt-4 grid items-start gap-6 lg:grid-cols-2">
         {data.PhotoURL && (
-          <div className="w-full overflow-hidden rounded-lg border border-zinc-200">
-            <img src={data.PhotoURL} alt={data.Topic} className="h-auto w-full object-cover" />
+          <div className="relative w-full overflow-hidden rounded-lg border border-zinc-200">
+            <div className="relative aspect-[16/9]">
+              <Image
+                src={data.PhotoURL}
+                alt={data.Topic}
+                fill
+                sizes="(min-width:1024px) 50vw, 100vw"
+                className="object-cover"
+                unoptimized
+              />
+            </div>
           </div>
         )}
 
