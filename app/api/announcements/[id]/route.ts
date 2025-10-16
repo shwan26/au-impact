@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 
 const TABLE  = 'Announcement';
