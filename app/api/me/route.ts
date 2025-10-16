@@ -5,55 +5,53 @@ export const dynamic = 'force-dynamic';
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
 
+// app/api/me/route.ts
 export async function GET() {
   const supabase = await getSupabaseServer();
 
   const { data: { user }, error: uerr } = await supabase.auth.getUser();
   if (uerr || !user) return NextResponse.json({ user: null }, { status: 200 });
 
-  // app metadata role (set this when creating users)
   const role = (user.app_metadata as any)?.role ?? 'user';
 
-  // App profile row
   const { data: profile } = await supabase
-    .from('User') // quoted in SQL, but Supabase accepts the unquoted string here
+    .from('User')
     .select('"User_ID","FullName","AUEmail"')
     .eq('auth_uid', user.id)
     .maybeSingle();
 
-  // Linked orgs (try the one that matches the role first)
   let sau: any = null;
   let auso: any = null;
 
   if (role === 'sau') {
     const { data } = await supabase
-      .from('SAU')
-      .select('"SAU_ID","Name"')
+      .from('sau')
+      .select('sau_id,name')             // use the actual casing your table uses
       .eq('auth_uid', user.id)
       .maybeSingle();
-    sau = data ?? null;
+    sau = data ? { SAU_ID: data.sau_id, Name: data.name } : null;
   } else if (role === 'auso') {
     const { data } = await supabase
-      .from('AUSO')
-      .select('"AUSO_ID","Name"')
+      .from('auso')
+      .select('auso_id,name')
       .eq('auth_uid', user.id)
       .maybeSingle();
-    auso = data ?? null;
+    auso = data ? { AUSO_ID: data.auso_id, Name: data.name } : null;
   } else {
-    // Optional: still try both to be safe
+    // 🔧 IMPORTANT: assign to the OUTER variables (no `const` here)
     const { data: s } = await supabase
-      .from('SAU')
-      .select('"SAU_ID","Name"')
+      .from('sau')
+      .select('sau_id,name')
       .eq('auth_uid', user.id)
       .maybeSingle();
-    sau = s ?? null;
+    sau = s ? { SAU_ID: s.sau_id, Name: s.name } : null;
 
     const { data: a } = await supabase
-      .from('AUSO')
-      .select('"AUSO_ID","Name"')
+      .from('auso')
+      .select('auso_id,name')
       .eq('auth_uid', user.id)
       .maybeSingle();
-    auso = a ?? null;
+    auso = a ? { AUSO_ID: a.auso_id, Name: a.name } : null;
   }
 
   return NextResponse.json({
@@ -61,11 +59,8 @@ export async function GET() {
       id: user.id,
       email: user.email,
       role,
-      profile, // may be null if no row yet
-      org: {
-        sau,  // { SAU_ID, Name } | null
-        auso, // { AUSO_ID, Name } | null
-      },
+      profile,
+      org: { sau, auso },
     },
   });
 }

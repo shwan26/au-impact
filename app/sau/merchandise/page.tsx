@@ -60,19 +60,19 @@ export default function SAUMerchandisePage() {
             </thead>
             <tbody className="text-zinc-900">
               {items.map((m) => (
-                <tr key={m.itemId} className="border-b border-zinc-300 last:border-b-0">
+                <tr key={m.ItemID} className="border-b border-zinc-300 last:border-b-0">
                   <td className="px-4 py-3 border-r border-zinc-300 font-mono">
-                    {m.itemId}
+                    {m.ItemID}
                   </td>
                   <td className="px-4 py-3 border-r border-zinc-300">
                     <Link
-                      href={`/sau/merchandise/${m.itemId}`}
+                      href={`/sau/merchandise/${m.ItemID}`}
                       className="underline hover:no-underline"
                     >
-                      {m.title}
+                      {m.Title}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{m.status}</td>
+                  <td className="px-4 py-3">{m.Status}</td>
                 </tr>
               ))}
               {!items.length && (

@@ -11,19 +11,38 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const idNum = Number(id);
-  if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  if (!Number.isFinite(idNum))
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
   const supabase = await getSupabaseServer();
   const { data, error } = await supabase
     .from(TABLE)
     .select(FIELDS)
-    .eq('AnnouncementID', idNum) // PascalCase
+    .eq('AnnouncementID', idNum)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!data)  return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(data);
+  if (error)
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data)
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  // 🔸 Use SAU_ID to look up the name from the sau table
+  let SAU_Name: string | null = null;
+  // GET
+  if (data.SAU_ID != null) {
+    const { data: sauRow, error: sauError } = await supabase
+      .from('sau')
+      .select('name')        // <-- quoted
+      .eq('sau_id', data.SAU_ID) // <-- quoted
+      .maybeSingle();
+
+    if (!sauError && sauRow) SAU_Name = sauRow.name ?? null;
+  }
+
+  // Return both announcement data and SAU_Name
+  return NextResponse.json({ ...data, SAU_Name });
 }
+
 
 export async function PUT(req: Request, ctx: Ctx) {
   try {
@@ -48,31 +67,26 @@ export async function PUT(req: Request, ctx: Ctx) {
     const { data, error } = await supabase
       .from(TABLE)
       .update(payload)
-      .eq('AnnouncementID', idNum) // PascalCase
+      .eq('AnnouncementID', idNum)
       .select(FIELDS)
       .single();
 
+    // after const { data, error } = await supabase.from(TABLE)...
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json(data);
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
-  }
-}
 
-export async function DELETE(_req: Request, ctx: Ctx) {
-  try {
-    const { id } = await ctx.params;
-    const idNum = Number(id);
-    if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    // Fetch SAU_Name for the updated record
+    let SAU_Name: string | null = null;
+    if (data.SAU_ID != null) {
+      const { data: sauRow } = await supabase
+        .from('sau')
+        .select('name')
+        .eq('sau_id', data.SAU_ID)
+        .maybeSingle();
+      SAU_Name = sauRow?.name ?? null;
+    }
 
-    const supabase = await getSupabaseServer();
-    const { error } = await supabase
-      .from(TABLE)
-      .delete()
-      .eq('AnnouncementID', idNum); // PascalCase
+    return NextResponse.json({ ...data, SAU_Name });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
   }

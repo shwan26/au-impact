@@ -14,6 +14,7 @@ type ApiRow = {
   DatePosted: string;
   Status: Status;
   SAU_ID: number | null;
+  SAU_Name?: string | null;
   AUSO_ID: number | null;
 };
 
@@ -25,6 +26,7 @@ type UiRow = {
   datePosted: string;
   status: Status;
   sauId: number | null;
+  sauName?: string | null;
   ausoId: number | null;
 };
 
@@ -37,6 +39,7 @@ function fromApi(r: ApiRow): UiRow {
     datePosted: r.DatePosted,
     status: r.Status,
     sauId: r.SAU_ID,
+    sauName: r.SAU_Name ?? null,
     ausoId: r.AUSO_ID,
   };
 }
@@ -61,6 +64,8 @@ export default function AUSOAnnouncementEditPage() {
         const json = text ? (JSON.parse(text) as ApiRow) : null;
         if (!json) throw new Error('Not found');
         if (!cancelled) setItem(fromApi(json));
+
+        
       } catch (e: any) {
         if (!cancelled) setErr(e?.message || 'Error loading');
       } finally {
@@ -111,7 +116,7 @@ export default function AUSOAnnouncementEditPage() {
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
         <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
           <div className="py-2 text-sm font-medium text-zinc-700">Activity Unit</div>
-          <div className="py-2">Student Council of Theodore Maria School of Arts</div>
+          <div className="py-2">{item.sauName || 'Unknown Unit'}</div>
 
           <div className="py-2 text-sm font-medium text-zinc-700">Announcement Number</div>
           <div className="py-2 font-mono">A{String(item.announcementId).padStart(6, '0')}</div>

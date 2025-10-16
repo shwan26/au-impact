@@ -27,19 +27,27 @@ export default function SAUNewAnnouncementPage() {
 
   // Load SAU name directly from Supabase
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch('/api/me', { credentials: 'include' }); // include cookies
-        const { user } = await res.json();
-        if (!alive) return;
-        setSauName(user?.org?.sau?.Name ?? null); // shows SAU name if linked
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => { alive = false; };
-  }, [supabase]);
+  let alive = true;
+  (async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: sauRow } = await supabase
+        .from('sau')
+        .select('name')       // <-- exact-case quotes
+        .eq('auth_uid', user!.id)
+        .maybeSingle();
+
+      setSauName(sauRow?.name ?? null);
+
+    } catch {
+      if (alive) setSauName(null);
+    }
+  })();
+
+  return () => { alive = false; };
+  // do NOT depend on supabase instance; it’s stable from your factory
+}, []);
+
 
   async function submit(status: 'DRAFT' | 'PENDING') {
     try {
@@ -132,13 +140,7 @@ export default function SAUNewAnnouncementPage() {
         >
           {saving ? 'Saving…' : 'Submit for review (PENDING)'}
         </button>
-        <button
-          disabled={saving}
-          onClick={() => submit('DRAFT')}
-          className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-60"
-        >
-          {saving ? 'Saving…' : 'Save draft (DRAFT)'}
-        </button>
+      
       </div>
     </div>
   );
