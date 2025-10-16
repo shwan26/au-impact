@@ -25,7 +25,10 @@ export default function AnnouncementList({ items }: { items: AnnouncementListIte
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((a) => (
         <article key={a.id} className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
+<<<<<<< HEAD
           {/* Image */}
+=======
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
           <div className="relative aspect-[16/9] bg-zinc-100">
             {a.photoUrl ? (
               <Image
@@ -38,17 +41,13 @@ export default function AnnouncementList({ items }: { items: AnnouncementListIte
               />
             ) : null}
           </div>
-
-          {/* Body */}
           <div className="p-4">
             <h3 className="line-clamp-2 text-base font-semibold">
               <Link href={`/public/announcements/${a.id}`} className="hover:underline">
                 {a.topic}
               </Link>
             </h3>
-
             {a.datePosted && <p className="mt-1 text-xs text-zinc-500">{a.datePosted}</p>}
-
             {a.description && (
               <p className="mt-2 line-clamp-3 text-sm text-zinc-700">{a.description}</p>
             )}

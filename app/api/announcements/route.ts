@@ -1,4 +1,3 @@
-// app/api/announcements/route.ts
 export const runtime = 'nodejs';
 
 import { NextResponse } from 'next/server';
@@ -9,7 +8,10 @@ const FIELDS =
   'announcementid, topic, description, photourl, dateposted, status, sau_id, auso_id';
 
 type Status = 'DRAFT' | 'PENDING' | 'LIVE' | 'COMPLETE' | string;
+<<<<<<< HEAD
 const ALLOWED_STATUS = new Set<Status>(['DRAFT', 'PENDING', 'LIVE', 'COMPLETE']);
+=======
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
 
 interface AnnouncementDBRow {
   announcementid: number;
@@ -20,6 +22,35 @@ interface AnnouncementDBRow {
   status: Status;
   sau_id: number | null;
   auso_id: number | null;
+<<<<<<< HEAD
+=======
+}
+interface AnnouncementAPI {
+  AnnouncementID: number;
+  Topic: string;
+  Description: string | null;
+  PhotoURL: string | null;
+  DatePosted: string;
+  Status: Status;
+  SAU_ID: number | null;
+  AUSO_ID: number | null;
+}
+
+function toApi(r: AnnouncementDBRow): AnnouncementAPI {
+  return {
+    AnnouncementID: r.announcementid,
+    Topic: r.topic,
+    Description: r.description,
+    PhotoURL: r.photourl,
+    DatePosted: r.dateposted,
+    Status: r.status,
+    SAU_ID: r.sau_id ?? null,
+    AUSO_ID: r.auso_id ?? null,
+  };
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
+}
+function msg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 interface AnnouncementAPI {
@@ -58,27 +89,28 @@ const msg = (e: unknown): string =>
 
 export async function GET(req: Request) {
   try {
-    const supabase = getSupabaseServer();
-    const { searchParams } = new URL(req.url);
-
-    const status = searchParams.get('status') || undefined;
-    const page = Math.max(1, Number(searchParams.get('page') || '1'));
-    const pageSize = Math.max(1, Number(searchParams.get('pageSize') || '9'));
+    const url = new URL(req.url);
+    const page = Number(url.searchParams.get('page') || '1');
+    const pageSize = Number(url.searchParams.get('pageSize') || '20');
+    const status = url.searchParams.get('status');
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
 
-    let q = supabase
+    const supabase = getSupabaseServer();
+
+    let query = supabase
       .from(TABLE)
       .select(FIELDS, { count: 'exact' })
+<<<<<<< HEAD
       .order('announcementid', { ascending: false });
+=======
+      .order('announcementid', { ascending: false })
+      .returns<AnnouncementDBRow[]>();
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
 
-    if (status) {
-      if (!ALLOWED_STATUS.has(status)) {
-        return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-      }
-      q = q.eq('status', status);
-    }
+    if (status) query = query.eq('status', status);
 
+<<<<<<< HEAD
     const { data, error, count } = await q
       .returns<AnnouncementDBRow[]>()
       .range(from, to);
@@ -94,11 +126,25 @@ export async function GET(req: Request) {
       { error: msg(e) || 'Internal error' },
       { status: 500 }
     );
+=======
+    const { data, error, count } = await query.range(from, to);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    return NextResponse.json({
+      items: (data ?? []).map(toApi),
+      total: count ?? 0,
+      page,
+      pageSize,
+    });
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Internal error' }, { status: 500 });
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
   }
 }
 
 export async function POST(req: Request) {
   try {
+<<<<<<< HEAD
     const supabase = getSupabaseServer();
     const body = (await req.json()) as CreateBody;
 
@@ -107,17 +153,27 @@ export async function POST(req: Request) {
       description: body.Description ?? null,
       photourl: body.PhotoURL ?? null,
       status: (body.Status ?? 'DRAFT') as Status,
+=======
+    const body = (await req.json()) as unknown as Partial<{
+      Topic: string;
+      Description: string | null;
+      PhotoURL: string | null;
+      Status: Status;
+      SAU_ID: number | null;
+      AUSO_ID: number | null;
+    }>;
+
+    const payload: Record<string, unknown> = {
+      topic: (body.Topic ?? '').toString(),
+      description: body.Description ?? null,
+      photourl: body.PhotoURL ?? null,
+      status: body.Status ?? 'DRAFT',
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
       sau_id: body.SAU_ID ?? null,
       auso_id: body.AUSO_ID ?? null,
     };
 
-    if (!payload.topic) {
-      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
-    }
-    if (!ALLOWED_STATUS.has(payload.status)) {
-      return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
-    }
-
+    const supabase = getSupabaseServer();
     const { data, error } = await supabase
       .from(TABLE)
       .insert(payload)
@@ -125,6 +181,7 @@ export async function POST(req: Request) {
       .returns<AnnouncementDBRow>()
       .single();
 
+<<<<<<< HEAD
     if (error || !data) {
       return NextResponse.json(
         { error: error?.message || 'Create failed' },
@@ -138,5 +195,11 @@ export async function POST(req: Request) {
       { error: msg(e) || 'Bad request' },
       { status: 400 }
     );
+=======
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json(toApi(data));
+  } catch (e: unknown) {
+    return NextResponse.json({ error: msg(e) || 'Bad request' }, { status: 400 });
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
   }
 }

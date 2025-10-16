@@ -1,5 +1,8 @@
 'use client';
+<<<<<<< HEAD
 /* eslint-disable @next/next/no-img-element */
+=======
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
 import type React from 'react';
 import { errMsg } from '@/lib/errors';
 
@@ -243,6 +246,7 @@ export default function SAUEditAnnouncementPage() {
 
             {photoUrl && (
               <div className="mt-2 overflow-hidden rounded border border-zinc-200">
+/* eslint-disable-next-line @next/next/no-img-element */
                 <img src={photoUrl} alt="Announcement photo" className="h-auto w-full object-cover" />
               </div>
             )}

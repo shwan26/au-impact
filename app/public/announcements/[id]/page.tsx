@@ -60,7 +60,6 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
           <p className="mt-1 text-sm text-zinc-500">
             {new Date(data.DatePosted).toLocaleString()}
           </p>
-
           {data.Description && (
             <div className="prose mt-4 max-w-none whitespace-pre-line">{data.Description}</div>
           )}

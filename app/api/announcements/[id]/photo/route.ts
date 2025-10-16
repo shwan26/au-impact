@@ -84,12 +84,20 @@ export async function POST(
 
     const supabase = getSupabaseServer();
 
+<<<<<<< HEAD
+=======
+    // buffer + storage key
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
     const ab = await file.arrayBuffer();
     const buf = Buffer.from(ab);
     const safeName = (file.name || 'photo').replace(/[^\w.-]+/g, '_');
     const key = `announcements/${idNum}/${Date.now()}_${safeName}`;
     const contentType = file.type || guessMime(safeName);
 
+<<<<<<< HEAD
+=======
+    // upload
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
     const { data: up, error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(key, buf, { contentType, upsert: true });
@@ -97,12 +105,24 @@ export async function POST(
       return NextResponse.json({ error: upErr?.message || 'Upload failed' }, { status: 400 });
     }
 
+<<<<<<< HEAD
+=======
+    if (upErr || !up) {
+      return NextResponse.json({ error: upErr?.message || 'Upload failed' }, { status: 400 });
+    }
+
+    // public url
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
     const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(up.path);
     const publicUrl = pub?.publicUrl ?? null;
     if (!publicUrl) {
       return NextResponse.json({ error: 'Failed to get public URL' }, { status: 500 });
     }
 
+<<<<<<< HEAD
+=======
+    // persist on the row
+>>>>>>> 97bd460cf094a4380cb3b7a5fa6c562d71094487
     const { data, error } = await supabase
       .from(TABLE)
       .update({ photourl: publicUrl })

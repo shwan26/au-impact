@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/uploads/[kind]/route.ts
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -31,20 +30,27 @@ function sanitizeFilename(name: string) {
 }
 
 async function ensureBucket(supabase: ReturnType<typeof newAdmin>, name: string) {
+  // list buckets and create if missing
   const { data: list, error: listErr } = await supabase.storage.listBuckets();
   if (listErr) throw new Error(listErr.message);
-  const exists = (list ?? []).some(b => b.name === name);
+
+  const exists = (list || []).some(b => b.name === name);
   if (exists) return;
+
   const { error: createErr } = await supabase.storage.createBucket(name, {
-    public: true,
+    public: true, // we build public URL directly
     fileSizeLimit: '20MB',
   });
   if (createErr) throw new Error(createErr.message);
 }
 
-export async function POST(req: Request, { params }: { params: { kind: string } }) {
+export async function POST(
+  req: Request,
+  ctx: { params: Promise<{ kind: string }> }
+) {
   try {
-    const bucket = bucketFor(params.kind);
+    const { kind } = await ctx.params;
+    const bucket = bucketFor(kind);
     if (!bucket) return NextResponse.json({ error: 'Unknown upload kind' }, { status: 400 });
 
     const form = await req.formData().catch(() => null);
@@ -61,22 +67,27 @@ export async function POST(req: Request, { params }: { params: { kind: string } 
     const rand = Math.random().toString(36).slice(2, 8);
     const path = [prefix, `${ts}-${rand}-${origName}`].filter(Boolean).join('/');
 
-    const admin = newAdmin();
-    await ensureBucket(admin, bucket);
+    const supabase = newAdmin();
 
-    const { error: upErr } = await admin.storage
+    // Ensure bucket exists (creates if missing)
+    await ensureBucket(supabase, bucket);
+
+    // Upload
+    const { error: upErr } = await supabase.storage
       .from(bucket)
       .upload(path, file, {
         contentType: file.type || 'application/octet-stream',
         upsert: false,
       });
 
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    if (upErr) {
+      return NextResponse.json({ error: upErr.message }, { status: 500 });
+    }
 
+    // Public URL (bucket must be public)
     const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
 
     return NextResponse.json({
-      ok: true,
       bucket,
       path,
       publicUrl,
