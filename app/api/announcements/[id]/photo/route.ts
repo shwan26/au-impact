@@ -9,6 +9,18 @@ const TABLE  = 'Announcement';
 const FIELDS = '"AnnouncementID","Topic","Description","PhotoURL","DatePosted","Status","SAU_ID","AUSO_ID"';
 const BUCKET = 'public';
 
+interface AnnouncementRowDB {
+  announcementid: number;
+  topic: string | null;
+  description: string | null;
+  photourl: string | null;
+  dateposted: string | null;
+  status: 'PENDING' | 'LIVE' | 'COMPLETE' | null;
+  sau_id: number | null;
+  auso_id: number | null;
+}
+
+
 // ---- helpers ---------------------------------------------------------------
 
 const EXT_MIME: Record<string, string> = {
@@ -41,7 +53,7 @@ function guessMime(name: string, fallback = 'application/octet-stream') {
 }
 
 // DB -> API (PascalCase)
-function mapRow(r: any) {
+function mapRow(r: AnnouncementRowDB) {
   return {
     AnnouncementID: r.announcementid,
     Topic: r.topic,
@@ -56,12 +68,11 @@ function mapRow(r: any) {
 
 // ---- route ----------------------------------------------------------------
 
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<{ id: string }> }
-) {
+type IdParams = { params: { id: string } };
+
+export async function POST(req: Request, { params }: IdParams) {
   try {
-    const { id } = await ctx.params;
+    const { id } = params;
     const idNum = Number(id);
     if (!Number.isFinite(idNum)) {
       return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -113,7 +124,8 @@ export async function POST(
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
     return NextResponse.json(mapRow(data));
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Upload failed' }, { status: 400 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Upload failed';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

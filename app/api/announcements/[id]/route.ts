@@ -6,10 +6,10 @@ import { getSupabaseServer } from '@/lib/supabaseServer';
 const TABLE  = 'Announcement';
 const FIELDS = '"AnnouncementID","Topic","Description","PhotoURL","DatePosted","Status","SAU_ID","AUSO_ID"';
 
-type Ctx = { params: Promise<{ id: string }> };
+type IdParams = { params: { id: string } };
 
-export async function GET(_req: Request, ctx: Ctx) {
-  const { id } = await ctx.params;
+export async function GET(_req: Request, { params }: IdParams) {
+  const { id } = params;
   const idNum = Number(id);
   if (!Number.isFinite(idNum))
     return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
@@ -44,16 +44,25 @@ export async function GET(_req: Request, ctx: Ctx) {
 }
 
 
-export async function PUT(req: Request, ctx: Ctx) {
+export async function PUT(req: Request, { params }: IdParams) {
   try {
-    const { id } = await ctx.params;
+    const { id } = params;
     const idNum = Number(id);
     if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     const supabase = await getSupabaseServer();
     const body = await req.json();
 
-    const payload: Record<string, any> = {};
+    type AnnouncementUpdate = {
+      Topic?: string | null;
+      Description?: string | null;
+      PhotoURL?: string | null;
+      Status?: 'PENDING' | 'LIVE' | 'COMPLETE' | null;
+      SAU_ID?: number | null;
+      AUSO_ID?: number | null;
+    };
+
+    const payload: AnnouncementUpdate = {};
     if ('Topic' in body)       payload.Topic       = body.Topic ?? null;
     if ('Description' in body) payload.Description = body.Description ?? null;
     if ('PhotoURL' in body)    payload.PhotoURL    = body.PhotoURL ?? null;
@@ -71,10 +80,8 @@ export async function PUT(req: Request, ctx: Ctx) {
       .select(FIELDS)
       .single();
 
-    // after const { data, error } = await supabase.from(TABLE)...
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
 
-    // Fetch SAU_Name for the updated record
     let SAU_Name: string | null = null;
     if (data.SAU_ID != null) {
       const { data: sauRow } = await supabase
@@ -86,8 +93,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     return NextResponse.json({ ...data, SAU_Name });
-
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Bad request';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

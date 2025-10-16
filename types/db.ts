@@ -27,7 +27,6 @@ export type Event = {
 
 /* ---------- Fundraising ---------- */
 export type Fundraising = {
-  [x: string]: any;
   id: ID;
   title: string;
   goal: number;
@@ -37,6 +36,7 @@ export type Fundraising = {
   currentDonation?: number;
   imageUrl?: string;
 };
+
 
 /* ---------- Merchandise ---------- */
 export type MerchImage = {
