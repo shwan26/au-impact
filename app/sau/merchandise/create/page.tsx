@@ -1,3 +1,4 @@
+// app/sau/merchandise/create/page.tsx
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -18,10 +19,16 @@ function genMerchNumber() {
 
 export default function SAUCreateMerchClothesPage() {
   const router = useRouter();
+
   const [merchNo, setMerchNo] = useState('');
   const [category, setCategory] = useState<Category>('Clothes');
   const [special, setSpecial] = useState<'yes' | 'no'>('no');
-  const [options, setOptions] = useState([{ id: 1 }]);
+
+  // Color rows (paired arrays: color_name[], color_photo[])
+  const [colors, setColors] = useState<Array<{ id: number }>>([{ id: 1 }]);
+
+  // Local previews for color photos (keyed by color row id)
+  const [colorPreviews, setColorPreviews] = useState<Record<number, string>>({});
 
   useEffect(() => setMerchNo(genMerchNumber()), []);
 
@@ -32,9 +39,124 @@ export default function SAUCreateMerchClothesPage() {
     router.push(categoryToPath(next));
   }
 
-  function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function addColor() {
+    setColors((prev) => [...prev, { id: (prev.at(-1)?.id ?? 0) + 1 }]);
+  }
+
+  function removeColor(id: number) {
+    setColors((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev));
+    setColorPreviews((p) => {
+      const n = { ...p };
+      if (n[id]) URL.revokeObjectURL(n[id]);
+      delete n[id];
+      return n;
+    });
+  }
+
+  function validate(form: HTMLFormElement) {
+    const get = (name: string) => form.elements.namedItem(name) as HTMLInputElement | null;
+
+    // 1) Merchandise Name
+    const titleEl = get('title');
+    if (!titleEl || !titleEl.value.trim()) {
+      return { ok: false, message: 'Please enter the Merchandise Name.', el: titleEl };
+    }
+
+    // 2) Contact Person
+    const contactNameEl = get('contactName');
+    if (!contactNameEl || !contactNameEl.value.trim()) {
+      return { ok: false, message: 'Please enter the Contact Person.', el: contactNameEl };
+    }
+
+    // 3) Contact LineID
+    const contactLineIdEl = get('contactLineId');
+    if (!contactLineIdEl || !contactLineIdEl.value.trim()) {
+      return { ok: false, message: 'Please enter the Contact LineID.', el: contactLineIdEl };
+    }
+
+    // 4) Price (> 0)
+    const priceEl = get('price');
+    const priceVal = Number(priceEl?.value ?? '');
+    if (!priceEl || !Number.isFinite(priceVal) || priceVal <= 0) {
+      return { ok: false, message: 'Please enter a valid Price greater than 0.', el: priceEl };
+    }
+
+    // 5) Required main images (each must be chosen) — by id
+    const needFile = (id: string, label: string) => {
+      const fileEl = document.getElementById(id) as HTMLInputElement | null;
+      const files = fileEl?.files;
+      if (!files || files.length === 0) {
+        return { ok: false as const, message: `Please upload ${label}.`, el: fileEl };
+      }
+      return { ok: true as const };
+    };
+
+    const overview = needFile('overview', 'an Overview Photo');
+    if (!overview.ok) return overview;
+
+    const front = needFile('front', 'a Front View photo');
+    if (!front.ok) return front;
+
+    const back = needFile('back', 'a Back View photo');
+    if (!back.ok) return back;
+
+    // 6) At least one size
+    const sizeChecks = form.querySelectorAll<HTMLInputElement>('input[name="sizes"]:checked');
+    if (sizeChecks.length === 0) {
+      return { ok: false, message: 'Please select at least one Size.' };
+    }
+
+    // 7) Color rows must be complete pairs (either both empty OR both filled)
+    const nameEls = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="color_name"]'));
+    const fileEls = Array.from(form.querySelectorAll<HTMLInputElement>('input[name="color_photo"]'));
+    for (let i = 0; i < Math.max(nameEls.length, fileEls.length); i++) {
+      const nameEl = nameEls[i];
+      const fileEl = fileEls[i];
+      const nameVal = (nameEl?.value || '').trim();
+      const hasFile = !!(fileEl?.files && fileEl.files.length > 0);
+
+      if ((nameVal && !hasFile) || (!nameVal && hasFile)) {
+        return {
+          ok: false as const,
+          message: 'Each color needs BOTH a name and a photo.',
+          el: nameVal ? (fileEl ?? null) : (nameEl ?? null),
+        };
+      }
+    }
+
+    // 8) Special price rules (if enabled)
+    if (special === 'yes') {
+      const qtyEl = get('specialQty');
+      const pctEl = get('specialPct');
+      const qty = Number(qtyEl?.value ?? 0);
+      const pct = Number(pctEl?.value ?? 0);
+      if (!qty || qty <= 0) {
+        return { ok: false, message: 'Please enter Special Quantity (must be > 0).', el: qtyEl };
+      }
+      if (!pct || pct <= 0 || pct > 100) {
+        return {
+          ok: false,
+          message: 'Please enter Special Percentage between 1 and 100.',
+          el: pctEl,
+        };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
+
+    const v = validate(form);
+    if (!v.ok) {
+      alert(v.message);
+      (v as any).el?.focus();
+      (v as any).el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     const fd = new FormData(form);
     fetch('/api/merchandise', { method: 'POST', body: fd })
       .then(async (r) => {
@@ -52,7 +174,7 @@ export default function SAUCreateMerchClothesPage() {
     <div className="mx-auto max-w-4xl px-4 py-6">
       <h1 className="text-2xl font-extrabold">Merchandise</h1>
 
-      <form onSubmit={onSubmit} className="mt-4 space-y-4">
+      <form onSubmit={onSubmit} className="mt-4 space-y-4" noValidate>
         <Row label="Activity Unit">
           <input type="hidden" name="sauId" value="1" />
           <div className="py-2">Student Council of Theodore Maria School of Arts</div>
@@ -64,27 +186,29 @@ export default function SAUCreateMerchClothesPage() {
         </Row>
 
         <Field label="Merchandise Name" name="title" />
+
         <Row label="Merchandise Category">
           <select
             className="w-60 rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200"
             value={category}
             onChange={(e) => onChangeCategory(e.target.value as Category)}
           >
-            <option>Clothes</option>
-            <option>Stationary</option>
-            <option>Accessory</option>
+            <option value="Clothes">Clothes</option>
+            <option value="Stationary">Stationary</option>
+            <option value="Accessory">Accessory</option>
           </select>
         </Row>
 
         <Field label="Contact Person" name="contactName" />
         <Field label="Contact LineID" name="contactLineId" />
-        <Field label="Price" name="price" type="number" min={0} />
+        <Field label="Price" name="price" type="number" min={1} step="1" />
 
-        <UploadRow label="Overview Photo" name="overview" />
-        <UploadRow label="Front View" name="front" />
-        <UploadRow label="Back View" name="back" />
+        {/* Required main images */}
+        <UploadRow label="Overview Photo" name="overview" id="overview" />
+        <UploadRow label="Front View"     name="front"    id="front" />
+        <UploadRow label="Back View"      name="back"     id="back" />
 
-        {/* Size chart – only for Clothes */}
+        {/* Size chart */}
         <Row label="Size Chart">
           <div className="flex flex-wrap gap-4 text-sm">
             {['XXS', 'XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL'].map((s) => (
@@ -96,35 +220,78 @@ export default function SAUCreateMerchClothesPage() {
           </div>
         </Row>
 
-        {/* Options (photo + caption), add more */}
-        {options.map((opt, idx) => (
-          <div
-            key={opt.id}
-            className="space-y-3 rounded-lg border border-zinc-200 p-3"
-          >
-            <div className="text-sm font-semibold">Option {idx + 1}</div>
-            <UploadRow label="Photo" name={`option_${opt.id}_photo`} />
-            <Field label="Caption" name={`option_${opt.id}_caption`} />
-          </div>
-        ))}
-        <div>
-          <button
-            type="button"
-            onClick={() =>
-              setOptions((o) => [...o, { id: (o.at(-1)?.id ?? 1) + 1 }])
-            }
-            className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm hover:bg-zinc-50"
-          >
-            Add Option
-          </button>
-        </div>
+        {/* Colors (paired arrays: color_photo[], color_name[]) */}
+        <Row label="Colors">
+          <div className="w-full space-y-4">
+            {colors.map((c, idx) => (
+              <div key={c.id} className="space-y-3 rounded-lg border border-zinc-200 p-3">
+                <div className="text-sm font-semibold">Color {idx + 1}</div>
 
+                {/* Photo input + preview */}
+                <UploadRow
+                  label="Color Photo"
+                  name="color_photo"
+                  id={`color_photo_${c.id}`}   // unique id; name stays constant for FormData arrays
+                  onChange={(file) => {
+                    setColorPreviews((p) => {
+                      const next = { ...p };
+                      // revoke old URL for this row
+                      if (next[c.id]) URL.revokeObjectURL(next[c.id]);
+                      if (!file) {
+                        delete next[c.id];
+                        return next;
+                      }
+                      const url = URL.createObjectURL(file);
+                      next[c.id] = url;
+                      return next;
+                    });
+                  }}
+                />
+                {colorPreviews[c.id] && (
+                  <img
+                    src={colorPreviews[c.id]}
+                    alt={`Color ${idx + 1}`}
+                    className="h-20 w-20 rounded border object-cover"
+                  />
+                )}
+
+                {/* Name input */}
+                <Field
+                  label="Color Name"
+                  name="color_name"
+                  id={`color_name_${c.id}`}    // unique id; name stays constant for FormData arrays
+                />
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => removeColor(c.id)}
+                    className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-xs hover:bg-zinc-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addColor}
+              className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-sm hover:bg-zinc-50"
+            >
+              Add Color
+            </button>
+          </div>
+        </Row>
+
+        {/* Special Price */}
         <Row label="Special Price">
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2">
               <input
                 type="radio"
                 name="special"
+                value="yes"
                 checked={special === 'yes'}
                 onChange={() => setSpecial('yes')}
               />
@@ -134,6 +301,7 @@ export default function SAUCreateMerchClothesPage() {
               <input
                 type="radio"
                 name="special"
+                value="no"
                 checked={special === 'no'}
                 onChange={() => setSpecial('no')}
               />
@@ -146,7 +314,7 @@ export default function SAUCreateMerchClothesPage() {
           label="Quantity"
           name="specialQty"
           type="number"
-          min={0}
+          min={1}
           disabled={disabledSpecial}
           className={disabledSpecial ? 'opacity-50 pointer-events-none' : ''}
         />
@@ -154,7 +322,8 @@ export default function SAUCreateMerchClothesPage() {
           label="Percentage"
           name="specialPct"
           type="number"
-          min={0}
+          min={1}
+          max={100}
           disabled={disabledSpecial}
           className={disabledSpecial ? 'opacity-50 pointer-events-none' : ''}
         />
@@ -179,7 +348,8 @@ export default function SAUCreateMerchClothesPage() {
   );
 }
 
-/* helpers */
+/* ---------- helpers ---------- */
+
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
@@ -192,25 +362,34 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 function Field({
   label,
   name,
+  id,
   type = 'text',
   min,
+  max,
+  step,
   disabled,
   className,
 }: {
   label: string;
   name: string;
+  id?: string;               // allow unique ids for repeated fields
   type?: string;
   min?: number;
+  max?: number;
+  step?: string | number;
   disabled?: boolean;
   className?: string;
 }) {
+  const inputId = id ?? name; // default to name when unique id isn't needed
   return (
     <Row label={label}>
       <input
-        id={name}
+        id={inputId}
         name={name}
         type={type}
         min={min}
+        max={max}
+        step={step}
         disabled={disabled}
         className={`w-full rounded-md border border-zinc-300 px-3 py-2 outline-none focus:ring-2 focus:ring-zinc-200 ${
           className ?? ''
@@ -220,21 +399,33 @@ function Field({
   );
 }
 
-function UploadRow({ label, name }: { label: string; name: string }) {
+function UploadRow({
+  label,
+  name,
+  id,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  id?: string;               // allow unique ids for repeated fields
+  onChange?: (file: File | null) => void;
+}) {
+  const inputId = id ?? name; // default to name when unique id isn't needed
   return (
     <Row label={label}>
       <label
-        htmlFor={name}
+        htmlFor={inputId}
         className="flex h-28 w-60 cursor-pointer items-center justify-center rounded-md border border-dashed border-zinc-300 bg-zinc-100 text-sm hover:bg-zinc-200"
       >
         ＋ Upload .png, .jpg, .jpeg
       </label>
       <input
-        id={name}
+        id={inputId}
         type="file"
-        name={name}
+        name={name}                 // repeated name for FormData arrays
         accept="image/png,image/jpeg"
         className="hidden"
+        onChange={(e) => onChange?.(e.currentTarget.files?.[0] ?? null)}
       />
     </Row>
   );

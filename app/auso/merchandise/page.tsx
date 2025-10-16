@@ -1,8 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { Merch } from '@/types/db';
+
+function StatusPill({ status }: { status?: Merch['status'] }) {
+  const styles = {
+    APPROVED: 'bg-emerald-100 text-emerald-700 border-emerald-300',
+    PENDING: 'bg-amber-100 text-amber-700 border-amber-300',
+    SOLD_OUT: 'bg-rose-100 text-rose-700 border-rose-300',
+  } as const;
+  const cls = styles[status as keyof typeof styles] ?? 'bg-zinc-100 text-zinc-700 border-zinc-300';
+  return (
+    <span className={`inline-block rounded-full border px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {status ?? 'UNKNOWN'}
+    </span>
+  );
+}
 
 export default function AUSOMerchandisePage() {
   const [items, setItems] = useState<Merch[]>([]);
@@ -25,6 +39,8 @@ export default function AUSOMerchandisePage() {
       }
     })();
   }, []);
+
+  const total = useMemo(() => items.length, [items]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-6 space-y-4">
@@ -73,7 +89,9 @@ export default function AUSOMerchandisePage() {
                       {m.title}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">{m.status}</td>
+                  <td className="px-4 py-3">
+                    <StatusPill status={m.status} />
+                  </td>
                 </tr>
               ))}
               {!items.length && (
@@ -84,6 +102,15 @@ export default function AUSOMerchandisePage() {
                 </tr>
               )}
             </tbody>
+            {total > 0 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={3} className="px-4 py-2 text-right text-xs text-zinc-500">
+                    Total: {total}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       )}

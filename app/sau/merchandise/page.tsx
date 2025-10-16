@@ -10,6 +10,7 @@ export default function SAUMerchandisePage() {
   const [items, setItems] = useState<Merch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  
 
   useEffect(() => {
     (async () => {
@@ -50,7 +51,7 @@ export default function SAUMerchandisePage() {
             <thead className="bg-zinc-50 text-zinc-800">
               <tr className="border-b border-zinc-300">
                 <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
-                  Project Number
+                  Merchandise Number
                 </th>
                 <th className="px-4 py-3 text-left font-semibold border-r border-zinc-300">
                   Merchandise Name
@@ -59,22 +60,25 @@ export default function SAUMerchandisePage() {
               </tr>
             </thead>
             <tbody className="text-zinc-900">
-              {items.map((m) => (
-                <tr key={m.ItemID} className="border-b border-zinc-300 last:border-b-0">
-                  <td className="px-4 py-3 border-r border-zinc-300 font-mono">
-                    {m.ItemID}
-                  </td>
-                  <td className="px-4 py-3 border-r border-zinc-300">
-                    <Link
-                      href={`/sau/merchandise/${m.ItemID}`}
-                      className="underline hover:no-underline"
-                    >
-                      {m.Title}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{m.Status}</td>
-                </tr>
-              ))}
+              {items.map((m) => {
+                const displayNo = `M${String(m.itemId).padStart(4, '0')}`; // e.g., M0004
+                return (
+                  <tr key={m.slug} className="border-b border-zinc-300 last:border-b-0">
+                    <td className="px-4 py-3 border-r border-zinc-300 font-mono">
+                      {displayNo}
+                    </td>
+                    <td className="px-4 py-3 border-r border-zinc-300">
+                      <Link
+                        href={`/sau/merchandise/${m.slug}`} // numeric id for the route
+                        className="underline hover:no-underline"
+                      >
+                        {m.title}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3">{m.status}</td>
+                  </tr>
+                );
+              })}
               {!items.length && (
                 <tr>
                   <td colSpan={3} className="px-4 py-6 text-center text-zinc-500">
@@ -83,6 +87,9 @@ export default function SAUMerchandisePage() {
                 </tr>
               )}
             </tbody>
+
+
+
           </table>
         </div>
       )}

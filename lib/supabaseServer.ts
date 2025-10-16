@@ -4,8 +4,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 /** Route Handlers & Server Actions (can write cookies). */
 export async function getSupabaseServer() {
-  const store = await cookies(); // ✅ await to satisfy Next 15 dynamic API
-
+  const store = await cookies();
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -26,9 +25,8 @@ export async function getSupabaseServer() {
 }
 
 /** Server Components (RSC) — do NOT write cookies here. */
-export function getSupabaseRSC() {
-  const store = cookies(); // ✅ sync in RSC
-
+export async function getSupabaseRSC() {
+  const store = await cookies(); // ← must await in Next 15
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -45,6 +43,5 @@ export function getSupabaseRSC() {
   );
 }
 
-/* ---------- Backward-compat aliases (so existing imports keep working) ---------- */
 export const createServerClientForRoute = getSupabaseServer;
 export const createServerClientForServerComponents = getSupabaseRSC;

@@ -4,13 +4,17 @@ export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabaseServer';
+import type { Merch } from '@/types/db';
+import { randomUUID } from 'node:crypto';
 
+const BUCKET = 'merch';
 const TABLE  = 'Merchandise';
 const FIELDS =
   '"ItemID","Title","Description","Price","PickUpDate","PickUpTime","PickUpPoint",' +
   '"ContactName","ContactLineID","PosterURL","FrontViewURL","BackViewURL","SizeChartURL",' +
   '"SAU_ID","AUSO_ID","Status"';
 
+// Next 15 dynamic route params are async
 type Ctx = { params: Promise<{ id: string }> };
 
 const EDITABLE_FIELDS = new Set([
@@ -28,55 +32,197 @@ const EDITABLE_FIELDS = new Set([
   'SizeChartURL',
 ]);
 
+function formToObject(fd: FormData) {
+  const obj: Record<string, any> = {};
+  fd.forEach((v, k) => (obj[k] = v));
+  return obj;
+}
+
+function toDbUpdateKeys(input: Record<string, any>) {
+  const out: Record<string, any> = {};
+  const map: Record<string, string> = {
+    title: 'Title',
+    description: 'Description',
+    price: 'Price',
+    pickUpDate: 'PickUpDate',
+    pickupDate: 'PickUpDate',
+    pickUpTime: 'PickUpTime',
+    pickupTime: 'PickUpTime',
+    pickUpPoint: 'PickUpPoint',
+    pickupPoint: 'PickUpPoint',
+    contactName: 'ContactName',
+    contactLineId: 'ContactLineID',
+    posterUrl: 'PosterURL',
+    frontUrl: 'FrontViewURL',
+    backUrl: 'BackViewURL',
+    sizeChartUrl: 'SizeChartURL',
+  };
+
+  for (const [k, v] of Object.entries(input)) {
+    if (map[k]) out[map[k]] = v;
+    else if (EDITABLE_FIELDS.has(k)) out[k] = v; // already DB-case
+    else if (k === 'Status') out['Status'] = v;  // handled separately
+  }
+  return out;
+}
+
+async function uploadIfFile(
+  supabase: any,
+  fd: FormData,
+  field: string,
+  folder: string
+) {
+  const v = fd.get(field);
+  if (!v || typeof v !== 'object' || !('arrayBuffer' in v)) return null;
+  const file = v as File;
+  if (!file.size) return null;
+
+  const ext = file.type?.split('/')?.[1] || 'bin';
+  const key = `${folder}/${randomUUID()}.${ext}`;
+
+  const { error: upErr } = await supabase
+    .storage.from(BUCKET)
+    .upload(key, file, { contentType: file.type, upsert: false });
+  if (upErr) throw upErr;
+
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(key);
+  return pub.publicUrl;
+}
+
+async function uploadFileObject(
+  supabase: any,
+  file: File,
+  folder: string
+) {
+  if (!file || !file.size) return null;
+  const ext = file.type?.split('/')?.[1] || 'bin';
+  const key = `${folder}/${randomUUID()}.${ext}`;
+
+  const { error: upErr } = await supabase
+    .storage.from(BUCKET)
+    .upload(key, file, { contentType: file.type, upsert: false });
+  if (upErr) throw upErr;
+
+  const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(key);
+  return pub.publicUrl;
+}
+
+function toUiMerch(
+  row: any,
+  sizes: string[] = [],
+  colorRows: Array<{ ColorLabel: string; PhotoURL: string | null }> = []
+): Merch {
+  return {
+    itemId: String(row.ItemID),
+    slug: String(row.ItemID),
+    title: row.Title,
+    description: row.Description ?? undefined,
+    price: Number(row.Price ?? 0),
+    status: row.Status,
+    availableSizes: sizes,
+    // ⬇ map labels + photo URLs into your UI shape
+    availableColors: colorRows.map(r => ({ label: String(r.ColorLabel), photoUrl: r.PhotoURL })),
+    pickupPoint: row.PickUpPoint ?? undefined,
+    pickupDate: row.PickUpDate ?? undefined,
+    pickupTime: row.PickUpTime ?? undefined,
+    contactName: row.ContactName ?? undefined,
+    contactLineId: row.ContactLineID ?? undefined,
+    images: {
+      poster: { alt: row.Title, url: row.PosterURL ?? '' },
+      frontView: row.FrontViewURL ? { alt: 'Front', url: row.FrontViewURL } : undefined,
+      backView: row.BackViewURL ? { alt: 'Back', url: row.BackViewURL } : undefined,
+      sizeChart: row.SizeChartURL ? { alt: 'Size Chart', url: row.SizeChartURL } : undefined,
+      misc: [],
+    },
+  };
+}
+
+
+async function fetchSizesColors(supabase: any, itemId: number) {
+  const [{ data: sz, error: szErr }, { data: col, error: colErr }] = await Promise.all([
+    supabase.from('MerchandiseSize').select('"SizeLabel"').eq('ItemID', itemId),
+    supabase.from('MerchandiseColor').select('"ColorLabel","PhotoURL"').eq('ItemID', itemId),
+  ]);
+  if (szErr) throw szErr;
+  if (colErr) throw colErr;
+  return {
+    sizes: (sz ?? []).map((r: any) => String(r.SizeLabel)),
+    colorRows: (col ?? []) as Array<{ ColorLabel: string; PhotoURL: string | null }>,
+  };
+}
+
+/* -------------------- GET (NO MUTATIONS) -------------------- */
 export async function GET(_req: Request, ctx: Ctx) {
   const { id } = await ctx.params;
   const idNum = Number(id);
-  if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  if (!Number.isFinite(idNum)) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+  }
 
   const supabase = await getSupabaseServer();
+
   const { data, error } = await supabase
     .from(TABLE)
     .select(FIELDS)
     .eq('ItemID', idNum)
     .maybeSingle();
-
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data)  return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  return NextResponse.json(data);
+
+  const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
+  return NextResponse.json(toUiMerch(data, sizes, colorRows));
+
 }
 
+/* Read-once fix: clone before delegating so body stream is fresh */
+export async function PATCH(req: Request, ctx: Ctx) {
+  return PUT(req.clone(), ctx);
+}
+
+/* -------------------- PUT (edits, including colors) -------------------- */
 export async function PUT(req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
     const idNum = Number(id);
-    if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    if (!Number.isFinite(idNum)) {
+      return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
+    }
 
     const supabase = await getSupabaseServer();
-    const body = await req.json();
 
-    // who is calling?
+    // Identify caller
     const { data: au } = await supabase.auth.getUser();
     const role = (au?.user?.app_metadata as any)?.role ?? null;
 
-    // Handle Status transitions inline (no extra /approve route needed):
+    // Read body exactly once
+    const contentType = req.headers.get('content-type') || '';
+    const isMultipart = contentType.includes('multipart/form-data');
+
+    let body: Record<string, any> = {};
+    let fd: FormData | null = null;
+
+    if (isMultipart) {
+      fd = await req.formData();
+      body = formToObject(fd);
+    } else {
+      try { body = await req.json(); } catch { body = {}; }
+    }
+
+    // Status transitions
     if ('Status' in body) {
       const next = String(body.Status);
-
-      if (role === 'auso' && next === 'APPROVED') {
+      if (role === 'auso' && (next === 'APPROVED' || next === 'PENDING')) {
         const { data, error } = await supabase
           .from(TABLE)
-          .update({ Status: 'APPROVED' })
+          .update({ Status: next })
           .eq('ItemID', idNum)
           .select(FIELDS)
           .single();
+        if (error) return NextResponse.json({ error: error.message }, { status: error.code === '42501' ? 403 : 400 });
 
-        if (error) {
-          const status = error.code === '42501' ? 403 : 400;
-          return NextResponse.json({ error: error.message }, { status });
-        }
-        return NextResponse.json(data);
+        const { sizes, colors } = await fetchSizesColors(supabase, idNum);
+        return NextResponse.json(toUiMerch(data, sizes, colors));
       }
-
       if (role === 'sau' && next === 'SOLD_OUT') {
         const { data, error } = await supabase
           .from(TABLE)
@@ -84,48 +230,159 @@ export async function PUT(req: Request, ctx: Ctx) {
           .eq('ItemID', idNum)
           .select(FIELDS)
           .single();
+        if (error) return NextResponse.json({ error: error.message }, { status: error.code === '42501' ? 403 : 400 });
 
-        if (error) {
-          const status = error.code === '42501' ? 403 : 400;
-          return NextResponse.json({ error: error.message }, { status });
-        }
-        return NextResponse.json(data);
+        const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
+        return NextResponse.json(toUiMerch(data, sizes, colorRows));
       }
-
-      // Any other status attempt is stripped
-      delete body.Status;
+      delete body.Status; // strip unsupported attempts
     }
 
-    // Non-status edits: SAU-only (RLS still enforces row ownership and timing)
+    // Field edits → SAU only
     if (role !== 'sau') {
       return NextResponse.json({ error: 'Only SAU can edit merchandise details' }, { status: 403 });
     }
 
-    const payload: Record<string, any> = {};
-    for (const [k, v] of Object.entries(body || {})) {
-      if (EDITABLE_FIELDS.has(k)) payload[k] = v;
-    }
-    if (!Object.keys(payload).length) {
-      return NextResponse.json({ error: 'No updatable fields' }, { status: 400 });
+    // Map basic fields
+    const candidate = toDbUpdateKeys(body);
+    const updates: Record<string, any> = {};
+    for (const [k, v] of Object.entries(candidate)) {
+      if (EDITABLE_FIELDS.has(k)) updates[k] = v;
     }
 
-    const { data, error } = await supabase
-      .from(TABLE)
-      .update(payload)
-      .eq('ItemID', idNum)
-      .select(FIELDS)
-      .single();
+    // Optional uploads for main images
+    if (fd) {
+      const posterUrl = await uploadIfFile(supabase, fd, 'overview', 'posters');
+      const frontUrl  = await uploadIfFile(supabase, fd, 'front',    'fronts');
+      const backUrl   = await uploadIfFile(supabase, fd, 'back',     'backs');
 
-    if (error) {
-      const status = error.code === '42501' ? 403 : 400;
-      return NextResponse.json({ error: error.message }, { status });
+      if (posterUrl) updates['PosterURL'] = posterUrl;
+      if (frontUrl)  updates['FrontViewURL'] = frontUrl;
+      if (backUrl)   updates['BackViewURL'] = backUrl;
     }
-    return NextResponse.json(data);
+
+    // ----- sizes/colors (replace set only if provided) -----
+    let sizesProvided = false;
+    let colorsProvided = false;
+    let nextSizes: string[] = [];
+    let nextColorsRows: Array<{ ItemID: number; ColorLabel: string; PhotoURL: string | null }> = [];
+
+    if (fd) {
+      // Sizes come as repeated 'sizes'
+      const s = fd.getAll('sizes').map((v) => String(v)).filter(Boolean);
+      if (fd.has('sizes') || s.length) {
+        sizesProvided = true;
+        nextSizes = Array.from(new Set(s));
+      }
+
+      // Colors come as paired arrays: color_name[], color_photo[]
+      const nameVals = fd.getAll('color_name').map(v => String(v).trim());
+      const fileVals = fd.getAll('color_photo');
+
+      if (nameVals.length || fileVals.length) {
+        colorsProvided = true;
+
+        for (let i = 0; i < Math.max(nameVals.length, fileVals.length); i++) {
+          const label = (nameVals[i] ?? '').trim();
+          const fAny  = fileVals[i] as any;
+          const isFile = fAny && typeof fAny === 'object' && 'arrayBuffer' in fAny && (fAny as File).size > 0;
+
+          // skip blank rows
+          if (!label && !isFile) continue;
+
+          let photoUrl: string | null = null;
+          if (isFile) {
+            photoUrl = await uploadFileObject(supabase, fAny as File, `colors/${idNum}`);
+          }
+
+          if (label) {
+            nextColorsRows.push({ ItemID: idNum, ColorLabel: label, PhotoURL: photoUrl });
+          }
+        }
+      }
+    } else {
+      // JSON editing (optional support)
+      if ('sizes' in body) {
+        sizesProvided = true;
+        nextSizes = Array.isArray(body.sizes) ? Array.from(new Set(body.sizes.map(String).filter(Boolean))) : [];
+      }
+      if ('colors' in body) {
+        colorsProvided = true;
+        // Accept ['Red','Blue'] or [{label:'Red', photoUrl:'...'}]
+        const arr = Array.isArray(body.colors) ? body.colors : [];
+        for (const c of arr) {
+          if (typeof c === 'string') {
+            nextColorsRows.push({ ItemID: idNum, ColorLabel: c, PhotoURL: null });
+          } else if (c && typeof c === 'object' && c.label) {
+            nextColorsRows.push({ ItemID: idNum, ColorLabel: String(c.label), PhotoURL: c.photoUrl ?? null });
+          }
+        }
+        // de-dup by ColorLabel
+        const seen = new Set<string>();
+        nextColorsRows = nextColorsRows.filter(r => {
+          if (seen.has(r.ColorLabel)) return false;
+          seen.add(r.ColorLabel);
+          return true;
+        });
+      }
+    }
+
+    // Update base row first (if any changes)
+    let lastRow: any = null;
+    if (Object.keys(updates).length) {
+      const upd = await supabase
+        .from(TABLE)
+        .update(updates)
+        .eq('ItemID', idNum)
+        .select(FIELDS)
+        .single();
+      if (upd.error) {
+        const status = upd.error.code === '42501' ? 403 : 400;
+        return NextResponse.json({ error: upd.error.message }, { status });
+      }
+      lastRow = upd.data;
+    } else {
+      const cur = await supabase.from(TABLE).select(FIELDS).eq('ItemID', idNum).maybeSingle();
+      if (cur.error) return NextResponse.json({ error: cur.error.message }, { status: 500 });
+      if (!cur.data) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      lastRow = cur.data;
+    }
+
+    // Replace sizes if provided
+    if (sizesProvided) {
+      const del = await supabase.from('MerchandiseSize').delete().eq('ItemID', idNum);
+      if (del.error) return NextResponse.json({ error: `Sizes: ${del.error.message}` }, { status: 400 });
+
+      if (nextSizes.length) {
+        const rows = nextSizes.map(s => ({ ItemID: idNum, SizeLabel: s }));
+        const ins = await supabase
+          .from('MerchandiseSize')
+          .upsert(rows, { onConflict: 'ItemID,SizeLabel' });
+        if (ins.error) return NextResponse.json({ error: `Sizes: ${ins.error.message}` }, { status: 400 });
+      }
+    }
+
+    // Replace colors if provided
+    if (colorsProvided) {
+      const del = await supabase.from('MerchandiseColor').delete().eq('ItemID', idNum);
+      if (del.error) return NextResponse.json({ error: `Colors: ${del.error.message}` }, { status: 400 });
+
+      if (nextColorsRows.length) {
+        const ins = await supabase
+          .from('MerchandiseColor')
+          .upsert(nextColorsRows, { onConflict: 'ItemID,ColorLabel' });
+        if (ins.error) return NextResponse.json({ error: `Colors: ${ins.error.message}` }, { status: 400 });
+      }
+    }
+
+    const { sizes, colorRows } = await fetchSizesColors(supabase, idNum);
+    return NextResponse.json(toUiMerch(lastRow, sizes, colorRows));
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Bad request' }, { status: 400 });
   }
 }
 
+/* -------------------- DELETE -------------------- */
 export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
@@ -133,10 +390,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     if (!Number.isFinite(idNum)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 });
 
     const supabase = await getSupabaseServer();
-    const { error } = await supabase
-      .from(TABLE)
-      .delete()
-      .eq('ItemID', idNum);
+    const { error } = await supabase.from(TABLE).delete().eq('ItemID', idNum);
 
     if (error) {
       const status = error.code === '42501' ? 403 : 400;

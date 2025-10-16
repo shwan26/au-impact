@@ -17,6 +17,13 @@ const MerchandiseList = dynamic(
 
 const PAGE_SIZE = 12;
 
+// Treat an item as "approved" if it either has approved === true or status === 'approved'
+const isApproved = (m: Merch) => {
+  // @ts-expect-error — support both shapes without changing the Merch type now
+  if (typeof m.approved !== 'undefined') return Boolean((m as any).approved);
+  return (m as any).status === 'APPROVED';
+};
+
 export default function Page() {
   const sp = useSearchParams();
   const pageParam = sp.get('page');
@@ -30,19 +37,25 @@ export default function Page() {
     [items]
   );
 
-  // ✅ fetch from API instead of mock
-  const { data, loading, error } = useJson<{ items: Merch[] }>('/api/merchandise');
+  // ✅ fetch from API (could also pass a hint like ?status=approved if your API supports it)
+  const { data, loading, error } = useJson<{ items: Merch[] }>(
+    '/api/merchandise'
+    // e.g. '/api/merchandise?status=approved'
+  );
   const allMerches = data?.items ?? [];
 
-  // filter (optional)
+  // keep only approved for public
+  const approvedOnly = useMemo(() => allMerches.filter(isApproved), [allMerches]);
+
+  // search (optional) within approved
   const filtered = useMemo(() => {
-    if (!q) return allMerches;
-    return allMerches.filter(
+    if (!q) return approvedOnly;
+    return approvedOnly.filter(
       (p) =>
         p.title.toLowerCase().includes(q) ||
         (p.description || '').toLowerCase().includes(q)
     );
-  }, [q, allMerches]);
+  }, [q, approvedOnly]);
 
   const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1);
   const clamped = Math.min(page, totalPages);
@@ -79,6 +92,12 @@ export default function Page() {
       {error && (
         <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm">
           Couldn’t load merchandise. Please try again later.
+        </div>
+      )}
+
+      {!error && itemsPage.length === 0 && (
+        <div className="rounded-md border border-gray-200 bg-white p-4 text-sm">
+          No approved merchandise found{q ? ` for “${q}”` : ''}.
         </div>
       )}
 

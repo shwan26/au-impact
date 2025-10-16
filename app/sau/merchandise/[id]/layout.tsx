@@ -5,10 +5,12 @@ export const dynamic = 'force-dynamic';
 import type { ReactNode } from 'react';
 import { getSupabaseRSC } from '@/lib/supabaseServer';
 
-export async function generateMetadata({ params }: { params: { id: string } }) {
+// make params async & await getSupabaseRSC()
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = getSupabaseRSC();
-    const idNum = Number(params.id);
+    const supabase = await getSupabaseRSC();
+    const { id } = await params;
+    const idNum = Number(id);
     if (!Number.isFinite(idNum)) return { title: 'Edit Merchandise (SAU)' };
 
     const { data } = await supabase
@@ -22,6 +24,7 @@ export async function generateMetadata({ params }: { params: { id: string } }) {
     return { title: 'Edit Merchandise (SAU)' };
   }
 }
+
 
 export default function SAUMerchLayout({ children }: { children: ReactNode }) {
   return (
