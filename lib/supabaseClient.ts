@@ -1,3 +1,4 @@
+// lib/supabaseClient.ts
 'use client';
 
 import { createBrowserClient } from '@supabase/ssr';
@@ -8,32 +9,31 @@ let browserClient: SupabaseClient | null = null;
 export function createClient(): SupabaseClient {
   if (browserClient) return browserClient;
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !key) {
+  if (!url || !anon) {
     throw new Error(
       'Supabase env not set. Define NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local (and restart dev server).'
     );
   }
 
-  browserClient = createBrowserClient(url, key, {
+  browserClient = createBrowserClient(url, anon, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     },
+    // ✅ DO NOT set Authorization manually — the SDK attaches the user's access token.
+    // apikey is automatically sent by the SDK; you can omit it.
     global: {
-      // ✅ explicitly include the required headers
       headers: {
-        apikey: key,
-        Authorization: `Bearer ${key}`,
         'x-client-info': 'portal-web',
+        // apikey: anon, // optional; commented because the SDK already sets it
       },
-      // (Optional) If you ever add a custom fetch, make sure you KEEP headers:
-      // fetch: async (u, opts = {}) =>
-      //   fetch(u, { ...opts, headers: { ...(opts.headers || {}) } }),
+      // If you add a custom fetch later, **do not** overwrite Authorization.
+      // fetch: async (input, init = {}) => fetch(input, { ...init, headers: { ...(init.headers || {}) } }),
     },
   });
 

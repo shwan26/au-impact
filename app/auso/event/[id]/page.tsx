@@ -1,281 +1,220 @@
 // app/auso/event/[id]/page.tsx
-import { unstable_noStore as noStore } from 'next/cache';
-import { notFound } from 'next/navigation';
-import RegisterButtons from '@/components/events/RegisterButtons';
-import { getBaseUrl } from '@/lib/baseUrl';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 
 type ApiEvent = {
   EventID?: string | number | null;
   Title?: string | null;
   Description?: string | null;
-  PosterURL?: string | null;
   PhotoURL?: string | null;
+  PosterURL?: string | null;
+  Location?: string | null;
+  Venue?: string | null;
+  StartDate?: string | null;
+  EndDate?: string | null;
   StartDateTime?: string | null;
   EndDateTime?: string | null;
-  Fee?: number | null;
-  Venue?: string | null;
-
-  MaxStaff?: number | null;
-  MaxParticipant?: number | null;
-
+  Status?: string | null;
   ScholarshipHours?: number | null;
-  OrganizerName?: string | null;
   OrganizerLineID?: string | null;
   LineGpURL?: string | null;
   LineGpQRCode?: string | null;
-
+  Fee?: number | null;
   BankName?: string | null;
   BankAccountNo?: string | null;
   BankAccountName?: string | null;
   PromptPayQR?: string | null;
-
-  id?: string | number | null;
-  title?: string | null;
-  description?: string | null;
-  imageUrl?: string | null;
-  startDate?: string | null;
-  endDate?: string | null;
-  venue?: string | null;
-  posterurl?: string | null;
-  photourl?: string | null;
-  photo_url?: string | null;
-
-  maxstaff?: number | null;
-  maxparticipant?: number | null;
-  scholarshiphours?: number | null;
-  organizername?: string | null;
-  organizerlineid?: string | null;
-  linegpurl?: string | null;
-  linegpqrcode?: string | null;
-
-  Photos?: string[] | null;
-  Gallery?: string[] | null;
-  PostURLs?: Array<string | { PostURL?: string | null }> | null;
 };
 
-type RegItem = { studentId: string; name: string; phone: string; attended?: boolean };
-type ApiRegs = { staff: RegItem[]; participants: RegItem[] };
+type UIEvent = {
+  id: string;
+  title: string;
+  description: string;
+  photoUrl: string | null;
+  location: string | null;
+  start: string | null;
+  end: string | null;
+  status: string;
+  scholarshipHours: number | null;
+  organizerLineId: string | null;
+  lineGroupUrl: string | null;
+  lineGroupQr: string | null;
+  fee: number | null;
+  bankName: string | null;
+  bankAccountNo: string | null;
+  bankAccountName: string | null;
+  promptPayQr: string | null;
+};
 
-function formatRange(startISO?: string | null, endISO?: string | null) {
-  if (!startISO) return '';
-  const s = new Date(startISO);
-  const e = endISO ? new Date(endISO) : s;
-  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
-  const sameDay =
-    s.getFullYear() === e.getFullYear() &&
-    s.getMonth() === e.getMonth() &&
-    s.getDate() === e.getDate();
-  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'long', day: 'numeric' };
-  return sameDay
-    ? s.toLocaleDateString(undefined, opts)
-    : `${s.toLocaleDateString(undefined, opts)} – ${e.toLocaleDateString(undefined, opts)}`;
+function statusLabel(s?: string | null) {
+  const v = String(s || '').toUpperCase();
+  if (v === 'PENDING') return 'PENDING';
+  if (v === 'APPROVED') return 'APPROVED';
+  if (v === 'LIVE') return 'LIVE';
+  if (v === 'COMPLETE') return 'COMPLETE';
+  if (v === 'REJECTED') return 'REJECTED';
+  if (v === 'DRAFT') return 'DRAFT';
+  return 'UNKNOWN';
 }
 
-function uniqNonEmpty(urls: (string | null | undefined)[]) {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const u of urls) {
-    const s = String(u ?? '').trim();
-    if (!s || seen.has(s)) continue;
-    seen.add(s);
-    out.push(s);
-  }
-  return out;
-}
+export default function AUSOEventModeratePage() {
+  const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
 
-export default async function AusoEventPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  noStore();
+  const [data, setData] = useState<UIEvent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  const { id } = await params;
-  const base = getBaseUrl();
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        setErr(null);
+        const res = await fetch(`/api/events/${id}`, { cache: 'no-store' });
+        const txt = await res.text();
+        const json: ApiEvent | null = txt ? JSON.parse(txt) : null;
+        if (!res.ok || !json) throw new Error((json as any)?.error || 'Failed to load event');
 
-  // 1) Fetch event
-  const evRes = await fetch(`${base}/api/events/${id}`, { cache: 'no-store' }).catch(() => null);
-  if (!evRes || !evRes.ok) return notFound();
-  const evText = await evRes.text();
-  const raw: ApiEvent | null = evText ? JSON.parse(evText) : null;
-  if (!raw) return notFound();
+        const ui: UIEvent = {
+          id: String(json.EventID ?? ''),
+          title: (json.Title ?? 'Untitled Event') || 'Untitled Event',
+          description: json.Description ?? '',
+          photoUrl: json.PhotoURL ?? json.PosterURL ?? null,
+          location: json.Location ?? json.Venue ?? null,
+          start: json.StartDate ?? json.StartDateTime ?? null,
+          end: json.EndDate ?? json.EndDateTime ?? null,
+          status: String(json.Status ?? 'PENDING').toUpperCase(),
+          scholarshipHours: typeof json.ScholarshipHours === 'number' ? json.ScholarshipHours : null,
+          organizerLineId: json.OrganizerLineID ?? null,
+          lineGroupUrl: json.LineGpURL ?? null,
+          lineGroupQr: json.LineGpQRCode ?? null,
+          fee: typeof json.Fee === 'number' ? json.Fee : null,
+          bankName: json.BankName ?? null,
+          bankAccountNo: json.BankAccountNo ?? null,
+          bankAccountName: json.BankAccountName ?? null,
+          promptPayQr: json.PromptPayQR ?? null,
+        };
 
-  const poster =
-    raw.PosterURL ??
-    raw.PhotoURL ??
-    raw.imageUrl ??
-    raw.posterurl ??
-    raw.photourl ??
-    raw.photo_url ??
-    null;
-
-  const galleryFromArrays: string[] = uniqNonEmpty([
-    ...(Array.isArray(raw?.Photos) ? raw!.Photos! : []),
-    ...(Array.isArray(raw?.Gallery) ? raw!.Gallery! : []),
-    ...(
-      Array.isArray(raw?.PostURLs)
-        ? raw!.PostURLs!.map((x) => (typeof x === 'string' ? x : (x?.PostURL ?? '')))
-        : []
-    ),
-  ]);
-
-  let galleryFromEndpoint: string[] = [];
-  try {
-    const gRes = await fetch(`${base}/api/events/${id}/photos`, { cache: 'no-store' });
-    if (gRes.ok) {
-      const t = await gRes.text();
-      if (t) {
-        const j = JSON.parse(t) as { items?: string[] } | string[];
-        const items = Array.isArray(j) ? j : Array.isArray(j.items) ? j.items : [];
-        galleryFromEndpoint = uniqNonEmpty(items);
+        if (!cancelled) setData(ui);
+      } catch (e: any) {
+        if (!cancelled) setErr(e?.message || 'Error loading event');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  async function setStatus(next: 'LIVE' | 'PENDING') {
+    if (!data) return;
+    if (data.status === next) return;
+    const confirmMsg =
+      next === 'LIVE'
+        ? 'Approve this event and set status to LIVE?'
+        : 'Set status to PENDING (not approved)?';
+    if (!confirm(confirmMsg)) return;
+
+    try {
+      setSaving(true);
+      setErr(null);
+      const res = await fetch(`/api/events/${data.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Status: next }),
+      });
+      const txt = await res.text();
+      const j = txt ? JSON.parse(txt) : null;
+      if (!res.ok || !j) throw new Error(j?.error || 'Failed to update status');
+      setData((prev) => (prev ? { ...prev, status: next } : prev));
+      alert(`Status updated to ${next}.`);
+    } catch (e: any) {
+      setErr(e?.message || 'Error updating status');
+    } finally {
+      setSaving(false);
     }
-  } catch {}
+  }
 
-  const gallery = uniqNonEmpty([poster, ...galleryFromArrays, ...galleryFromEndpoint]);
-
-  const ev = {
-    id: raw.EventID ?? raw.id ?? null,
-    title: (raw.Title ?? raw.title ?? 'Untitled Event') || 'Untitled Event',
-    description: raw.Description ?? raw.description ?? '',
-    imageUrl: poster,
-    start: raw.StartDateTime ?? raw.startDate ?? null,
-    end: raw.EndDateTime ?? raw.endDate ?? null,
-    fee: raw.Fee ?? null,
-    venue: raw.Venue ?? raw.venue ?? null,
-
-    maxStaff: raw.MaxStaff ?? (typeof raw.maxstaff === 'number' ? raw.maxstaff : null),
-    maxParticipants:
-      raw.MaxParticipant ?? (typeof raw.maxparticipant === 'number' ? raw.maxparticipant : null),
-
-    scholarshipHours:
-      raw.ScholarshipHours ??
-      (typeof raw.scholarshiphours === 'number' ? raw.scholarshiphours : null),
-
-    organizerName:
-      raw.OrganizerName ?? (typeof raw.organizername === 'string' ? raw.organizername : null),
-
-    organizerLineId:
-      raw.OrganizerLineID ??
-      (typeof raw.organizerlineid === 'string' ? raw.organizerlineid : null),
-    lineGroupUrl: raw.LineGpURL ?? (typeof raw.linegpurl === 'string' ? raw.linegpurl : null),
-    lineGroupQr: raw.LineGpQRCode ?? (typeof raw.linegpqrcode === 'string' ? raw.linegpqrcode : null),
-
-    bankName: raw.BankName ?? null,
-    bankAccountNo: raw.BankAccountNo ?? null,
-    bankAccountName: raw.BankAccountName ?? null,
-    promptPayQr: raw.PromptPayQR ?? null,
-
-    gallery,
-  };
-
-  if (!ev.id) return notFound();
-  const eventId = String(ev.id);
-
-  // (optional) counts
-  let regs: ApiRegs = { staff: [], participants: [] };
-  try {
-    const r = await fetch(`${base}/api/events/${eventId}/registrations`, { cache: 'no-store' });
-    const t = await r.text();
-    if (r.ok && t) {
-      const j = JSON.parse(t);
-      if (Array.isArray(j?.staff) && Array.isArray(j?.participants)) regs = j as ApiRegs;
-    }
-  } catch {}
-
-  const registeredStaff = regs.staff.length;
-  const registeredParticipants = regs.participants.length;
-  const openStaffSlots =
-    ev.maxStaff == null ? null : Math.max(0, Number(ev.maxStaff) - registeredStaff);
-  const openParticipantSlots =
-    ev.maxParticipants == null ? null : Math.max(0, Number(ev.maxParticipants) - registeredParticipants);
-
-  const dateText = formatRange(ev.start, ev.end);
+  if (loading) return <div className="p-6">Loading…</div>;
+  if (err) return <div className="p-6 text-red-600">Error: {err}</div>;
+  if (!data) return <div className="p-6">Event not found.</div>;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-6">
-      {/* Poster FIRST (above caption/title) */}
-      {ev.imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={ev.imageUrl}
-          alt={ev.title}
-          loading="lazy"
-          className="w-full max-w-4xl rounded-xl object-cover mx-auto"
-        />
-      )}
+    <div className="mx-auto max-w-4xl px-4 py-6">
+      <h1 className="text-2xl font-extrabold">Event Moderation</h1>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2">
-          <h1 className="text-3xl font-extrabold">{ev.title}</h1>
-          {dateText && <p className="mt-1 text-sm text-zinc-600">{dateText}</p>}
-          {ev.venue && <p className="mt-1 text-sm text-zinc-600">Venue: {ev.venue}</p>}
-          {typeof ev.fee === 'number' && (
-            <p className="mt-1 text-sm text-zinc-600">
-              Registration Fee: {Number(ev.fee).toLocaleString()} THB
-            </p>
-          )}
-          {typeof ev.scholarshipHours === 'number' && ev.scholarshipHours > 0 && (
-            <p className="mt-1 text-sm font-semibold text-zinc-800">
-              Scholarship hours – {ev.scholarshipHours} {ev.scholarshipHours === 1 ? 'hour' : 'hours'}
-            </p>
-          )}
-          {ev.organizerName && (
-            <p className="mt-1 text-sm text-zinc-700">Organizer: <span className="font-medium">{ev.organizerName}</span></p>
-          )}
-          {/* Note: AUSO page can show LINE/Payment or not—keeping it minimal like public */}
-        </div>
-
-        <div className="md:col-span-1">
-          <div className="mt-1">
-            <RegisterButtons
-              eventId={eventId}
-              openStaff={openStaffSlots}
-              openParticipants={openParticipantSlots}
-            />
+      {/* Read-only info snapshot (simple) */}
+      <div className="mt-4 space-y-4">
+        <Row label="Project Name">
+          <div className="py-2">{data.title}</div>
+        </Row>
+        <Row label="Event Venue">
+          <div className="py-2">{data.location || '-'}</div>
+        </Row>
+        <Row label="Description">
+          <div className="whitespace-pre-wrap rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
+            {data.description || '-'}
           </div>
-
-          <div className="mt-5 text-base font-semibold">
-            <div>Registered Staff: {registeredStaff}</div>
-            <div>Open Staff Slot: {openStaffSlots == null ? 'Unlimited' : openStaffSlots}</div>
-
-            <div className="mt-4">Registered Participant: {registeredParticipants}</div>
-            <div>Open Participant Slot: {openParticipantSlots == null ? 'Unlimited' : openParticipantSlots}</div>
-          </div>
-        </div>
+        </Row>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2">
-          {ev.description && (
-            <div className="whitespace-pre-line text-[15px] leading-7 text-zinc-800">
-              {ev.description}
-            </div>
-          )}
-        </div>
-        <div className="md:col-span-1" />
+      {/* Status (readonly display) */}
+      <div className="mt-8 rounded-2xl border border-zinc-200 p-4">
+        <Row label="Status">
+          <div className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 font-semibold">
+            {statusLabel(data.status)}
+          </div>
+        </Row>
       </div>
 
-      {ev.gallery.length > (ev.imageUrl ? 1 : 0) && (
-        <section className="mt-2">
-          <h2 className="mb-3 text-lg font-semibold">Photos</h2>
-          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
-            {ev.gallery
-              .filter((u, idx) => !(idx === 0 && u === ev.imageUrl))
-              .map((url, i) => (
-                <div key={`${url}-${i}`} className="overflow-hidden rounded-xl border border-zinc-200 bg-white">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={url}
-                    alt={`Photo ${i + 1}`}
-                    loading="lazy"
-                    className="aspect-[16/10] h-full w-full object-cover"
-                  />
-                </div>
-              ))}
+      {/* Actions */}
+      <div className="mt-6">
+        <Row label="Actions">
+          <div className="flex flex-wrap gap-4">
+            <button
+              type="button"
+              onClick={() => setStatus('LIVE')}
+              disabled={saving || data.status === 'LIVE'}
+              className="rounded-xl bg-black px-6 py-3 text-base font-semibold text-white hover:opacity-90 disabled:opacity-40"
+            >
+              Approve (LIVE)
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatus('PENDING')}
+              disabled={saving || data.status === 'PENDING'}
+              className="rounded-xl border border-zinc-300 bg-white px-6 py-3 text-base font-semibold hover:bg-zinc-50 disabled:opacity-40"
+            >
+              Not approve (PENDING)
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push('/auso/event')}
+              className="rounded-xl border border-zinc-300 bg-white px-6 py-3 text-base font-semibold hover:bg-zinc-50"
+            >
+              Back
+            </button>
           </div>
-        </section>
-      )}
+        </Row>
+        {err && (
+          <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label?: string; children: React.ReactNode }) {
+  return (
+    <div className="grid items-start gap-3 md:grid-cols-[210px_1fr]">
+      <div className="py-2 text-sm font-medium text-zinc-700">{label}</div>
+      <div>{children}</div>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// app/auso/merchandise/[id]/page.tsx
 'use client';
 
 import Image from 'next/image';
@@ -7,6 +8,13 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Merch } from '@/types/db';
 
 const LABEL_COL = 'min-w-[210px] pr-4 text-sm font-medium text-zinc-700';
+
+type MerchColor = {
+  merchId: string | number | null;
+  name: string | null;
+  photoUrl: string | null;
+  id?: string | number | null; // optional, if your API returns it
+};
 
 export default function AUSOMerchReadonlyModerationPage() {
   const router = useRouter();
@@ -18,14 +26,18 @@ export default function AUSOMerchReadonlyModerationPage() {
   const [busy, setBusy] = useState<'APPROVE' | 'PENDING' | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
+  // Colors (read-only)
+  const [colors, setColors] = useState<MerchColor[]>([]);
+  const [loadingColors, setLoadingColors] = useState(false);
+  const [colorErr, setColorErr] = useState<string | null>(null);
+
   const displayNo = useMemo(
-    () => (merch ? `M${String(merch.itemId).padStart(4, '0')}` : ''),
+    () => (merch ? `M${String((merch as any).itemId ?? merch?.id ?? '').padStart(4, '0')}` : ''),
     [merch]
   );
 
   const isApproved = merch?.status === 'APPROVED';
   const isPending = merch?.status === 'PENDING';
-  const isSoldOut = merch?.status === 'SOLD_OUT';
 
   useEffect(() => {
     if (!id) return;
@@ -46,12 +58,38 @@ export default function AUSOMerchReadonlyModerationPage() {
     };
   }, [id]);
 
+  // Fetch colors (read-only)
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    setLoadingColors(true);
+    setColorErr(null);
+    (async () => {
+      try {
+        const res = await fetch(`/api/merchandise/${id}/colors`, { cache: 'no-store' });
+        if (!res.ok) {
+          const j = await res.json().catch(() => null);
+          throw new Error(j?.error || 'Failed to load colors');
+        }
+        const data = (await res.json()) as MerchColor[];
+        if (alive) setColors(data ?? []);
+      } catch (e: any) {
+        if (alive) setColorErr(e?.message || 'Failed to load colors');
+      } finally {
+        if (alive) setLoadingColors(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
   async function updateStatus(next: 'APPROVED' | 'PENDING') {
     if (!id) return;
     try {
       setBusy(next);
       setErrMsg(null);
-      // Using "Status" (capital S) to match your existing SAU PATCH payload
+      // Using "Status" (capital S) to match your SAU PATCH contract
       const res = await fetch(`/api/merchandise/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -98,7 +136,7 @@ export default function AUSOMerchReadonlyModerationPage() {
         </Row>
 
         <Row label="Merchandise Number">
-          <div className="py-2 font-mono">{displayNo}</div>
+          <div className="py-2 font-mono">{displayNo || <span className="text-zinc-500">—</span>}</div>
         </Row>
 
         <Row label="Merchandise Name">
@@ -114,7 +152,9 @@ export default function AUSOMerchReadonlyModerationPage() {
         </Row>
 
         <Row label="Price">
-          <div className="py-2">{merch.price != null ? `${merch.price}` : <span className="text-zinc-500">—</span>}</div>
+          <div className="py-2">
+            {merch.price != null ? `${merch.price}` : <span className="text-zinc-500">—</span>}
+          </div>
         </Row>
 
         {/* Images */}
@@ -142,6 +182,51 @@ export default function AUSOMerchReadonlyModerationPage() {
               ))
             ) : (
               <span className="text-zinc-500">—</span>
+            )}
+          </div>
+        </Row>
+
+        {/* Colors (read-only) */}
+        <Row label="Colors">
+          <div className="w-full">
+            {loadingColors && (
+              <div className="py-2 text-sm text-zinc-500">Loading colors…</div>
+            )}
+            {colorErr && (
+              <div className="py-2 text-sm text-red-600">{colorErr}</div>
+            )}
+            {!loadingColors && !colorErr && (
+              <>
+                {colors.length === 0 ? (
+                  <div className="py-2 text-sm text-zinc-500">No colors</div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+                    {colors.map((c, i) => (
+                      <div
+                        key={`${c.id ?? c.merchId}-${c.name}-${i}`}
+                        className="rounded-lg border p-3 text-sm"
+                      >
+                        <div className="mb-2 h-24 w-full overflow-hidden rounded-md border bg-white">
+                          {c.photoUrl ? (
+                            <Image
+                              src={c.photoUrl}
+                              alt={c.name ?? 'Color'}
+                              width={200}
+                              height={120}
+                              className="h-24 w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-zinc-400">
+                              No image
+                            </div>
+                          )}
+                        </div>
+                        <div className="truncate font-medium">{c.name || 'Unnamed color'}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </Row>
