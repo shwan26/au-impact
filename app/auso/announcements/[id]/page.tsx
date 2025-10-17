@@ -116,7 +116,7 @@ export default function AUSOAnnouncementEditPage() {
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
         <div className="grid items-start gap-3 md:grid-cols-[220px_1fr]">
           <div className="py-2 text-sm font-medium text-zinc-700">Activity Unit</div>
-          <div className="py-2">{item.sauName || 'Unknown Unit'}</div>
+          <div className="py-2">{item.sauName || 'VMES Student Council'}</div>
 
           <div className="py-2 text-sm font-medium text-zinc-700">Announcement Number</div>
           <div className="py-2 font-mono">A{String(item.announcementId).padStart(6, '0')}</div>
