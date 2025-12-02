@@ -53,28 +53,27 @@ export type MerchColor = {
 export type MerchSize = 'XS'|'S'|'M'|'L'|'XL'|'2XL'|'3XL';
 
 export type Merch = {
-  itemId: string;       // ItemID
-  slug: string;         // for routing
+  itemId: string;
+  slug: string;
   title: string;
   description?: string;
-  price: number;        // Price
-  status: 'PENDING' | 'APPROVED' | 'SOLD_OUT';  // ✅ added for merch
-  availableSizes: MerchSize[];
-  availableColors: MerchColor[];
-  pickupPoint?: string; // PickUpPoint
-  pickupDate?: string;  // e.g. '28 Jan - 14 Feb'
-  pickupTime?: string;  // e.g. '10:30 - 15:00'
+  price: number;
+  status: string;
+  availableSizes: string[];
+  availableColors: Array<{ label: string; photoUrl?: string | null }>;
+  pickupPoint?: string;
+  pickupDate?: string;
+  pickupTime?: string;
   contactName?: string;
   contactLineId?: string;
   images: {
-    poster: MerchImage;
-    frontView?: MerchImage;
-    backView?: MerchImage;
-    sizeChart?: MerchImage;
-    misc?: MerchImage[];
+    poster: { alt: string; url: string };
+    frontView?: { alt: string; url: string };
+    backView?: { alt: string; url: string };
+    sizeChart?: { alt: string; url: string };
+    misc: Array<{ alt: string; url: string }>;
   };
 };
-
 
 /* ---------- Cart / Orders ---------- */
 export type CartItem = {
